@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Clock, Calendar, ArrowLeftRight, Users, CheckCircle2 } from 'lucide-react';
+import { getMonthlyGuards, MONTH_NAMES } from '../../lib/guardRotation';
 
 const DAYS_OF_WEEK = [
   { id: 1, name: 'Lun', fullName: 'Lunes' },
@@ -14,16 +15,19 @@ const DAYS_OF_WEEK = [
 export const MiGrilla: React.FC = () => {
   const { currentCoach, shifts, saturdayGuards, setIsCreateChangeModalOpen } = useApp();
   
+  const today = new Date();
   const [selectedDay, setSelectedDay] = useState<number>(() => {
-    const day = new Date().getDay();
+    const day = today.getDay();
     return day === 0 ? 1 : day;
   });
 
   const myShifts = shifts.filter(s => s.coach_id === currentCoach.id);
   const weeklyHours = myShifts.reduce((acc, curr) => acc + curr.duration_hours, 0);
 
-  const myGuards = saturdayGuards.filter(g => g.coach_id === currentCoach.id);
-  const nextGuard = myGuards.find(g => new Date(g.date) >= new Date(new Date().setHours(0,0,0,0))) || myGuards[0];
+  // Guardias de sábado del mes actual (sin registro histórico)
+  const currentMonthGuards = getMonthlyGuards(today.getFullYear(), today.getMonth(), saturdayGuards);
+  const myGuardsThisMonth = currentMonthGuards.filter(g => g.coach_id === currentCoach.id);
+  const nextGuard = myGuardsThisMonth.find(g => new Date(g.date) >= new Date(new Date().setHours(0,0,0,0))) || myGuardsThisMonth[0];
 
   const selectedDayShifts = myShifts.filter(s => s.day_of_week === selectedDay);
 
@@ -76,7 +80,7 @@ export const MiGrilla: React.FC = () => {
           <div className="bg-malon-bg/60 rounded-xl p-3 border border-malon-surface/50">
             <div className="flex items-center space-x-1.5 text-malon-muted text-xs mb-1">
               <Calendar className="w-3.5 h-3.5 text-malon-red" />
-              <span>Próxima Guardia</span>
+              <span>Guardia {MONTH_NAMES[today.getMonth()]}</span>
             </div>
             {nextGuard ? (
               <div>
@@ -88,7 +92,7 @@ export const MiGrilla: React.FC = () => {
                 </span>
               </div>
             ) : (
-              <span className="text-xs text-malon-muted">Sin guardias próximas</span>
+              <span className="text-xs text-malon-muted">Sin guardia este mes</span>
             )}
           </div>
         </div>
@@ -144,8 +148,8 @@ export const MiGrilla: React.FC = () => {
 
         {selectedDay === 6 ? (
           <div className="space-y-2">
-            {myGuards.length > 0 ? (
-              myGuards.map(guard => (
+            {myGuardsThisMonth.length > 0 ? (
+              myGuardsThisMonth.map(guard => (
                 <div
                   key={guard.id}
                   className="bg-malon-card border border-malon-surface rounded-2xl p-4 space-y-3"
@@ -163,7 +167,7 @@ export const MiGrilla: React.FC = () => {
                       Guardia Rotativa de Sala
                     </h4>
                     <p className="text-xs text-malon-muted mt-0.5">
-                      Fecha: {guard.date}
+                      Fecha: {guard.date.split('-').slice(1).reverse().join('/')}
                     </p>
                   </div>
                   <div className="pt-2 border-t border-malon-surface flex justify-end">
@@ -181,7 +185,7 @@ export const MiGrilla: React.FC = () => {
               <div className="bg-malon-card/50 border border-dashed border-malon-surface rounded-2xl p-6 text-center">
                 <CheckCircle2 className="w-8 h-8 text-malon-muted mx-auto mb-2 opacity-50" />
                 <p className="text-xs font-medium text-malon-muted">
-                  No tenés guardia asignada para este sábado
+                  No tenés guardia asignada para este sábado de {MONTH_NAMES[today.getMonth()]}
                 </p>
               </div>
             )}
@@ -267,21 +271,21 @@ export const MiGrilla: React.FC = () => {
         )}
       </div>
 
-      {/* Historial de guardias de sábado */}
+      {/* Guardias de sábado del mes actual (sin historial antiguo) */}
       <div className="bg-malon-card border border-malon-surface rounded-2xl p-4">
         <h4 className="text-xs font-bold text-malon-sand uppercase tracking-wider mb-2 flex items-center justify-between">
-          <span>Cronograma de Guardias de Sábado (11-14 hs)</span>
-          <span className="text-[10px] text-malon-muted">Rotativo</span>
+          <span>Guardias de Sábados ({MONTH_NAMES[today.getMonth()]})</span>
+          <span className="text-[10px] text-malon-muted font-mono">11:00 - 14:00 hs</span>
         </h4>
         <div className="space-y-2 mt-3">
-          {saturdayGuards.map(sg => {
+          {currentMonthGuards.map((sg, idx) => {
             const isMe = sg.coach_id === currentCoach.id;
             return (
               <div
-                key={sg.id}
+                key={sg.id || idx}
                 className={`flex items-center justify-between p-2.5 rounded-xl border text-xs ${
                   isMe
-                    ? 'bg-malon-surface/80 border-malon-sand text-white'
+                    ? 'bg-malon-surface/80 border-malon-sand text-white font-bold'
                     : 'bg-malon-bg/40 border-malon-surface/50 text-malon-muted'
                 }`}
               >
@@ -290,8 +294,8 @@ export const MiGrilla: React.FC = () => {
                     {sg.date.split('-').slice(1).reverse().join('/')}
                   </span>
                   <span>•</span>
-                  <span className={`font-semibold ${isMe ? 'text-malon-sand' : 'text-white'}`}>
-                    {sg.coach_name} {isMe && '(Vos)'}
+                  <span className={`${isMe ? 'text-malon-sand font-bold' : 'text-white'}`}>
+                    {sg.coach_name} {isMe && '(Te toca a vos)'}
                   </span>
                 </div>
                 <span className="text-[10px] font-mono text-malon-muted">

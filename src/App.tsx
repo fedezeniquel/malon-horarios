@@ -8,6 +8,8 @@ import { Cambios } from './components/screens/Cambios';
 import { AdminPinModal } from './components/modals/AdminPinModal';
 import { CoachPickerModal } from './components/modals/CoachPickerModal';
 import { CreateShiftChangeModal } from './components/modals/CreateShiftChangeModal';
+import { EditShiftModal } from './components/modals/EditShiftModal';
+import { EditGuardModal } from './components/modals/EditGuardModal';
 
 const AppContent: React.FC = () => {
   const { activeTab } = useApp();
@@ -31,6 +33,8 @@ const AppContent: React.FC = () => {
       <AdminPinModal />
       <CoachPickerModal />
       <CreateShiftChangeModal />
+      <EditShiftModal />
+      <EditGuardModal />
     </div>
   );
 };

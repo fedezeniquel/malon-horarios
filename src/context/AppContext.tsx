@@ -26,6 +26,11 @@ interface AppContextType {
   confirmShiftChange: (requestId: string) => void;
   cancelShiftChange: (requestId: string) => void;
   updateShift: (updatedShift: Shift) => void;
+  addShift: (newShift: Omit<Shift, 'id'>) => void;
+  deleteShift: (shiftId: string) => void;
+  addSaturdayGuard: (newGuard: Omit<SaturdayGuard, 'id'>) => void;
+  updateSaturdayGuard: (guard: SaturdayGuard) => void;
+  deleteSaturdayGuard: (guardId: string) => void;
   activeTab: 'mi-grilla' | 'general' | 'cambios';
   setActiveTab: (tab: 'mi-grilla' | 'general' | 'cambios') => void;
   isPinModalOpen: boolean;
@@ -34,6 +39,14 @@ interface AppContextType {
   setIsCoachPickerOpen: (open: boolean) => void;
   isCreateChangeModalOpen: boolean;
   setIsCreateChangeModalOpen: (open: boolean) => void;
+  editingShift: Shift | null;
+  setEditingShift: (shift: Shift | null) => void;
+  isShiftModalOpen: boolean;
+  setIsShiftModalOpen: (open: boolean) => void;
+  editingGuard: SaturdayGuard | null;
+  setEditingGuard: (guard: SaturdayGuard | null) => void;
+  isGuardModalOpen: boolean;
+  setIsGuardModalOpen: (open: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -55,12 +68,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isCoachPickerOpen, setIsCoachPickerOpen] = useState<boolean>(false);
   const [isCreateChangeModalOpen, setIsCreateChangeModalOpen] = useState<boolean>(false);
 
+  // Estados para modales de edición administrativa
+  const [editingShift, setEditingShift] = useState<Shift | null>(null);
+  const [isShiftModalOpen, setIsShiftModalOpen] = useState<boolean>(false);
+  const [editingGuard, setEditingGuard] = useState<SaturdayGuard | null>(null);
+  const [isGuardModalOpen, setIsGuardModalOpen] = useState<boolean>(false);
+
   const [shifts, setShifts] = useState<Shift[]>(() => {
+    const version = localStorage.getItem('malon_data_version');
+    if (version !== 'v2_sheets_sync') {
+      localStorage.setItem('malon_data_version', 'v2_sheets_sync');
+      localStorage.setItem('malon_shifts', JSON.stringify(INITIAL_SHIFTS));
+      localStorage.setItem('malon_saturday_guards', JSON.stringify(INITIAL_SATURDAY_GUARDS));
+      return INITIAL_SHIFTS;
+    }
     const local = localStorage.getItem('malon_shifts');
     return local ? JSON.parse(local) : INITIAL_SHIFTS;
   });
 
-  const [saturdayGuards] = useState<SaturdayGuard[]>(() => {
+  const [saturdayGuards, setSaturdayGuards] = useState<SaturdayGuard[]>(() => {
+    const version = localStorage.getItem('malon_data_version');
+    if (version !== 'v2_sheets_sync') {
+      return INITIAL_SATURDAY_GUARDS;
+    }
     const local = localStorage.getItem('malon_saturday_guards');
     return local ? JSON.parse(local) : INITIAL_SATURDAY_GUARDS;
   });
@@ -186,8 +216,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
+  // Funciones de administración de turnos de la grilla
   const updateShift = (updatedShift: Shift) => {
     setShifts(prev => prev.map(s => (s.id === updatedShift.id ? updatedShift : s)));
+  };
+
+  const addShift = (newShiftData: Omit<Shift, 'id'>) => {
+    const newShift: Shift = {
+      ...newShiftData,
+      id: `shift-${Date.now()}`,
+    };
+    setShifts(prev => [...prev, newShift]);
+  };
+
+  const deleteShift = (shiftId: string) => {
+    setShifts(prev => prev.filter(s => s.id !== shiftId));
+  };
+
+  // Funciones de administración de guardias de los sábados
+  const addSaturdayGuard = (newGuardData: Omit<SaturdayGuard, 'id'>) => {
+    const newGuard: SaturdayGuard = {
+      ...newGuardData,
+      id: `sg-${Date.now()}`,
+    };
+    setSaturdayGuards(prev => [...prev, newGuard].sort((a, b) => a.date.localeCompare(b.date)));
+  };
+
+  const updateSaturdayGuard = (guard: SaturdayGuard) => {
+    setSaturdayGuards(prev =>
+      prev.map(g => (g.id === guard.id ? guard : g)).sort((a, b) => a.date.localeCompare(b.date))
+    );
+  };
+
+  const deleteSaturdayGuard = (guardId: string) => {
+    setSaturdayGuards(prev => prev.filter(g => g.id !== guardId));
   };
 
   return (
@@ -207,6 +269,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         confirmShiftChange,
         cancelShiftChange,
         updateShift,
+        addShift,
+        deleteShift,
+        addSaturdayGuard,
+        updateSaturdayGuard,
+        deleteSaturdayGuard,
         activeTab,
         setActiveTab,
         isPinModalOpen,
@@ -215,6 +282,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsCoachPickerOpen,
         isCreateChangeModalOpen,
         setIsCreateChangeModalOpen,
+        editingShift,
+        setEditingShift,
+        isShiftModalOpen,
+        setIsShiftModalOpen,
+        editingGuard,
+        setEditingGuard,
+        isGuardModalOpen,
+        setIsGuardModalOpen,
       }}
     >
       {children}
