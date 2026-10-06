@@ -585,51 +585,6 @@ export const INITIAL_SATURDAY_GUARDS: SaturdayGuard[] = [
   { id: 'sg-2026-10-31', date: '2026-10-31', start_time: '11:00', end_time: '14:00', coach_id: 'gise', coach_name: 'Gise', status: 'scheduled' },
 ];
 
-// Pedidos de cambio iniciales
-export const INITIAL_SHIFT_CHANGES: ShiftChangeRequest[] = [
-  {
-    id: 'ch-1',
-    created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
-    requester_id: 'cristian',
-    requester_name: 'Cristian',
-    target_date: '2026-10-08',
-    day_name: 'Jueves',
-    start_time: '07:00',
-    end_time: '08:00',
-    type: 'single_hour',
-    franja: 'manana',
-    reason: 'Trámite médico a primera hora',
-    status: 'open',
-  },
-  {
-    id: 'ch-2',
-    created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
-    requester_id: 'sil',
-    requester_name: 'Sil',
-    target_date: '2026-10-12',
-    day_name: 'Lunes',
-    start_time: '13:00',
-    end_time: '15:00',
-    type: 'multiple_hours',
-    franja: 'tarde',
-    reason: 'Viaje formativo',
-    status: 'open',
-  },
-  {
-    id: 'ch-3',
-    created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
-    requester_id: 'lucas',
-    requester_name: 'Lucas',
-    target_date: '2026-10-09',
-    day_name: 'Viernes',
-    start_time: '19:00',
-    end_time: '21:00',
-    type: 'multiple_hours',
-    franja: 'noche',
-    reason: 'Compromiso académico',
-    status: 'claimed',
-    claimed_by_id: 'javi',
-    claimed_by_name: 'Javi',
-    claimed_at: new Date(Date.now() - 3600000 * 6).toISOString(),
-  },
-];
+// Pedidos de cambio iniciales (limpio para producción)
+export const INITIAL_SHIFT_CHANGES: ShiftChangeRequest[] = [];
+

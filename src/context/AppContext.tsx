@@ -76,10 +76,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [shifts, setShifts] = useState<Shift[]>(() => {
     const version = localStorage.getItem('malon_data_version');
-    if (version !== 'v2_sheets_sync') {
-      localStorage.setItem('malon_data_version', 'v2_sheets_sync');
+    if (version !== 'v3_production') {
+      localStorage.setItem('malon_data_version', 'v3_production');
       localStorage.setItem('malon_shifts', JSON.stringify(INITIAL_SHIFTS));
       localStorage.setItem('malon_saturday_guards', JSON.stringify(INITIAL_SATURDAY_GUARDS));
+      localStorage.setItem('malon_shift_changes', JSON.stringify([]));
       return INITIAL_SHIFTS;
     }
     const local = localStorage.getItem('malon_shifts');
@@ -88,7 +89,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [saturdayGuards, setSaturdayGuards] = useState<SaturdayGuard[]>(() => {
     const version = localStorage.getItem('malon_data_version');
-    if (version !== 'v2_sheets_sync') {
+    if (version !== 'v3_production') {
       return INITIAL_SATURDAY_GUARDS;
     }
     const local = localStorage.getItem('malon_saturday_guards');
@@ -96,6 +97,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [shiftChanges, setShiftChanges] = useState<ShiftChangeRequest[]>(() => {
+    const version = localStorage.getItem('malon_data_version');
+    if (version !== 'v3_production') {
+      return [];
+    }
     const local = localStorage.getItem('malon_shift_changes');
     return local ? JSON.parse(local) : INITIAL_SHIFT_CHANGES;
   });
