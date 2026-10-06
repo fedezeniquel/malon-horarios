@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { PlusCircle, Clock, Calendar, Check, AlertCircle, CheckCircle, HandHandshake, User, ArrowRight, Trash2 } from 'lucide-react';
-import { ShiftChangeRequest } from '../../types';
+import { PlusCircle, Clock, Calendar, CheckCircle, Handshake, Trash2 } from 'lucide-react';
+import type { ShiftChangeRequest } from '../../types';
 
 export const Cambios: React.FC = () => {
   const { currentCoach, shiftChanges, claimShiftChange, confirmShiftChange, cancelShiftChange, setIsCreateChangeModalOpen } = useApp();
   
   const [filter, setFilter] = useState<'open' | 'mine' | 'history'>('open');
 
-  // Filtrado de cambios
   const filteredChanges = shiftChanges.filter(item => {
     if (filter === 'open') {
       return item.status === 'open';
@@ -48,7 +47,7 @@ export const Cambios: React.FC = () => {
       <div className="bg-gradient-to-r from-malon-card to-[#19191d] border border-malon-surface rounded-2xl p-4 flex items-center justify-between shadow-lg">
         <div>
           <h3 className="text-sm font-bold text-white flex items-center space-x-1.5">
-            <HandHandshake className="w-4 h-4 text-malon-sand" />
+            <Handshake className="w-4 h-4 text-malon-sand" />
             <span>Bolsa Comunitaria</span>
           </h3>
           <p className="text-xs text-malon-muted mt-0.5">
@@ -178,7 +177,7 @@ export const Cambios: React.FC = () => {
                             onClick={() => claimShiftChange(change.id)}
                             className="bg-malon-sand hover:bg-malon-sand-hover text-black px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow flex items-center space-x-1"
                           >
-                            <HandHandshake className="w-3.5 h-3.5" />
+                            <Handshake className="w-3.5 h-3.5" />
                             <span>Tomar Reemplazo</span>
                           </button>
                         </div>
@@ -191,7 +190,7 @@ export const Cambios: React.FC = () => {
                     <div className="w-full space-y-2">
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-malon-sand font-semibold flex items-center space-x-1">
-                          <HandHandshake className="w-3.5 h-3.5" />
+                          <Handshake className="w-3.5 h-3.5" />
                           <span>Tomado por: {change.claimed_by_name}</span>
                         </span>
                         <span className="text-[10px] text-amber-400 font-bold bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
@@ -235,7 +234,7 @@ export const Cambios: React.FC = () => {
           })
         ) : (
           <div className="bg-malon-card/50 border border-dashed border-malon-surface rounded-2xl p-8 text-center space-y-2">
-            <HandHandshake className="w-8 h-8 text-malon-muted mx-auto opacity-40" />
+            <Handshake className="w-8 h-8 text-malon-muted mx-auto opacity-40" />
             <h4 className="text-xs font-semibold text-white">
               No hay pedidos en esta sección
             </h4>

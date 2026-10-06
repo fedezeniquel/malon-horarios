@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Shield, X, Delete, Check } from 'lucide-react';
+import { Shield, X, Delete } from 'lucide-react';
 
 export const AdminPinModal: React.FC = () => {
   const { isPinModalOpen, setIsPinModalOpen, verifyAdminPin } = useApp();

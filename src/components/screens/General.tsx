@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Sun, Sunset, Moon, Shield, ShieldCheck, Users, Clock, CalendarDays, Edit3 } from 'lucide-react';
-import { Franja, Shift } from '../../types';
+import { Sun, Sunset, Moon, Shield, ShieldCheck, Users, Clock, CalendarDays } from 'lucide-react';
+import type { Shift } from '../../types';
 
 const DAYS = [
   { id: 1, name: 'Lunes', short: 'Lun' },
@@ -20,18 +20,14 @@ export const General: React.FC = () => {
     return day === 0 ? 1 : day;
   });
 
-  // Turnos del día seleccionado
   const dayShifts = shifts.filter(s => s.day_of_week === selectedDay);
 
-  // Agrupamiento por franja
   const mananaShifts = dayShifts.filter(s => s.franja === 'manana');
   const tardeShifts = dayShifts.filter(s => s.franja === 'tarde');
   const nocheShifts = dayShifts.filter(s => s.franja === 'noche');
 
-  // Turno de sábado
-  const saturdayGuard = saturdayGuards[0]; // Guardia más próxima
+  const saturdayGuard = saturdayGuards[0];
 
-  // Unificar turnos dobles para renderizarlos de forma elegante y agrupada
   const groupDoubleShifts = (shiftList: Shift[]) => {
     const renderedIds = new Set<string>();
     const grouped: {
@@ -47,7 +43,6 @@ export const General: React.FC = () => {
       if (renderedIds.has(shift.id)) return;
 
       if (shift.is_double_coverage) {
-        // Encontrar su pareja
         const partner = shiftList.find(
           s => s.id !== shift.id &&
                s.is_double_coverage &&

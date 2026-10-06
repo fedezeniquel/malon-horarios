@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { X, Clock, Calendar, AlertCircle } from 'lucide-react';
-import { ShiftChangeType, Franja } from '../../types';
+import { X } from 'lucide-react';
+import type { ShiftChangeType, Franja } from '../../types';
 
 export const CreateShiftChangeModal: React.FC = () => {
   const { isCreateChangeModalOpen, setIsCreateChangeModalOpen, createShiftChange } = useApp();
@@ -21,7 +21,6 @@ export const CreateShiftChangeModal: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Determinar día de la semana
     const [year, month, day] = targetDate.split('-').map(Number);
     const dateObj = new Date(year, month - 1, day);
     const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];

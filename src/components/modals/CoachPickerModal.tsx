@@ -1,7 +1,7 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { X, Check, ShieldCheck, User } from 'lucide-react';
-import { StaffMember } from '../../types';
+import { X, Check, ShieldCheck } from 'lucide-react';
+import type { StaffMember } from '../../types';
 
 export const CoachPickerModal: React.FC = () => {
   const { staff, currentCoach, setCurrentCoach, isCoachPickerOpen, setIsCoachPickerOpen } = useApp();

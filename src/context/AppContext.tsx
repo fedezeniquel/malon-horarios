@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { StaffMember, Shift, SaturdayGuard, ShiftChangeRequest, ShiftChangeType, Franja } from '../types';
+import type { StaffMember, Shift, SaturdayGuard, ShiftChangeRequest, ShiftChangeType, Franja } from '../types';
 import { INITIAL_STAFF, INITIAL_SHIFTS, INITIAL_SATURDAY_GUARDS, INITIAL_SHIFT_CHANGES } from '../lib/initialData';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
@@ -41,13 +41,12 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 const MASTER_PIN = import.meta.env.VITE_ADMIN_MASTER_PIN || '1234';
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Staff y Coach activo (guardado en localStorage del dispositivo móvil)
   const [staff] = useState<StaffMember[]>(INITIAL_STAFF);
   
   const [currentCoach, setCurrentCoachState] = useState<StaffMember>(() => {
     const savedId = localStorage.getItem('malon_current_coach_id');
     const found = INITIAL_STAFF.find(s => s.id === savedId);
-    return found || INITIAL_STAFF[0]; // Por defecto Patri
+    return found || INITIAL_STAFF[0];
   });
 
   const [activeTab, setActiveTab] = useState<'mi-grilla' | 'general' | 'cambios'>('mi-grilla');
@@ -56,13 +55,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isCoachPickerOpen, setIsCoachPickerOpen] = useState<boolean>(false);
   const [isCreateChangeModalOpen, setIsCreateChangeModalOpen] = useState<boolean>(false);
 
-  // Turnos en memoria con persistencia en localStorage para offline/mock
   const [shifts, setShifts] = useState<Shift[]>(() => {
     const local = localStorage.getItem('malon_shifts');
     return local ? JSON.parse(local) : INITIAL_SHIFTS;
   });
 
-  const [saturdayGuards, setSaturdayGuards] = useState<SaturdayGuard[]>(() => {
+  const [saturdayGuards] = useState<SaturdayGuard[]>(() => {
     const local = localStorage.getItem('malon_saturday_guards');
     return local ? JSON.parse(local) : INITIAL_SATURDAY_GUARDS;
   });
@@ -72,7 +70,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return local ? JSON.parse(local) : INITIAL_SHIFT_CHANGES;
   });
 
-  // Guardar en localStorage
   useEffect(() => {
     localStorage.setItem('malon_shifts', JSON.stringify(shifts));
   }, [shifts]);
@@ -85,24 +82,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('malon_shift_changes', JSON.stringify(shiftChanges));
   }, [shiftChanges]);
 
-  // Sincronización Supabase Realtime si está configurado
   useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) return;
+    const client = supabase;
+    if (!isSupabaseConfigured || !client) return;
 
-    const channel = supabase
+    const channel = client
       .channel('schema-db-changes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'shift_changes' },
         (payload) => {
           console.log('Realtime shift_changes update:', payload);
-          // Actualización de cambios en tiempo real
         }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      client.removeChannel(channel);
     };
   }, []);
 

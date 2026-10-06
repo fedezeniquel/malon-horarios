@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Clock, Calendar, ShieldAlert, ArrowLeftRight, Users, PlusCircle, CheckCircle2 } from 'lucide-react';
+import { Clock, Calendar, ArrowLeftRight, Users, CheckCircle2 } from 'lucide-react';
 
 const DAYS_OF_WEEK = [
   { id: 1, name: 'Lun', fullName: 'Lunes' },
@@ -14,23 +14,17 @@ const DAYS_OF_WEEK = [
 export const MiGrilla: React.FC = () => {
   const { currentCoach, shifts, saturdayGuards, setIsCreateChangeModalOpen } = useApp();
   
-  // Día seleccionado (por defecto día actual o lunes)
   const [selectedDay, setSelectedDay] = useState<number>(() => {
     const day = new Date().getDay();
-    return day === 0 ? 1 : day; // Si es domingo, mostrar lunes
+    return day === 0 ? 1 : day;
   });
 
-  // Turnos del profesor activo
   const myShifts = shifts.filter(s => s.coach_id === currentCoach.id);
-  
-  // Horas semanales acumuladas
   const weeklyHours = myShifts.reduce((acc, curr) => acc + curr.duration_hours, 0);
 
-  // Guardias de sábado asignadas
   const myGuards = saturdayGuards.filter(g => g.coach_id === currentCoach.id);
   const nextGuard = myGuards.find(g => new Date(g.date) >= new Date(new Date().setHours(0,0,0,0))) || myGuards[0];
 
-  // Turnos del día seleccionado
   const selectedDayShifts = myShifts.filter(s => s.day_of_week === selectedDay);
 
   return (
@@ -149,7 +143,6 @@ export const MiGrilla: React.FC = () => {
         </div>
 
         {selectedDay === 6 ? (
-          /* Vista especial sábado */
           <div className="space-y-2">
             {myGuards.length > 0 ? (
               myGuards.map(guard => (
@@ -200,7 +193,6 @@ export const MiGrilla: React.FC = () => {
                 key={shift.id}
                 className="bg-malon-card border border-malon-surface rounded-2xl p-4 transition-all hover:border-malon-sand/50 space-y-3"
               >
-                {/* Cabecera del turno */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <span
@@ -228,7 +220,6 @@ export const MiGrilla: React.FC = () => {
                   </span>
                 </div>
 
-                {/* Info del turno y compañero si es doble */}
                 <div>
                   <h4 className="text-sm font-bold text-white flex items-center justify-between">
                     <span>Sala de Entrenamiento</span>
@@ -251,7 +242,6 @@ export const MiGrilla: React.FC = () => {
                   )}
                 </div>
 
-                {/* Acciones */}
                 <div className="pt-2 border-t border-malon-surface flex items-center justify-between">
                   <span className="text-[11px] text-malon-muted">
                     {shift.is_double_coverage ? 'Cobertura compartida' : 'Bloque individual'}

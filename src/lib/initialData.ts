@@ -1,4 +1,4 @@
-import { StaffMember, Shift, SaturdayGuard, ShiftChangeRequest } from '../types';
+import type { StaffMember, Shift, SaturdayGuard, ShiftChangeRequest } from '../types';
 
 export const INITIAL_STAFF: StaffMember[] = [
   { id: 'patri', name: 'Patri', role: 'admin', initials: 'PA', phone: '+5491100000001' },
@@ -119,7 +119,6 @@ export const INITIAL_SHIFTS: Shift[] = [
 
   // NOCHE 18:00 a 21:00 - Doble cobertura simultánea (Javi, Ema, Lucas)
   ...WEEKDAYS.flatMap(day => {
-    // Distribuimos la doble cobertura nocturna entre Javi, Ema y Lucas
     const pairs: [string, string, string, string][] = [
       ['javi', 'Javi', 'ema', 'Ema'],
       ['ema', 'Ema', 'lucas', 'Lucas'],

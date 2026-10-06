@@ -1,6 +1,6 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { Shield, ShieldAlert, User, ChevronDown } from 'lucide-react';
+import { Shield, ShieldAlert, ChevronDown } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const { currentCoach, isAdminUnlocked, setIsPinModalOpen, setIsCoachPickerOpen, lockAdmin } = useApp();
