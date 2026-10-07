@@ -10,6 +10,7 @@ import { CoachPickerModal } from './components/modals/CoachPickerModal';
 import { CreateShiftChangeModal } from './components/modals/CreateShiftChangeModal';
 import { EditShiftModal } from './components/modals/EditShiftModal';
 import { EditGuardModal } from './components/modals/EditGuardModal';
+import { InstallPrompt } from './components/InstallPrompt';
 
 const AppContent: React.FC = () => {
   const { activeTab } = useApp();
@@ -21,6 +22,9 @@ const AppContent: React.FC = () => {
 
       {/* Contenido principal Mobile-First */}
       <main className="flex-1 w-full max-w-md mx-auto px-4 py-4">
+        {/* Banner de instalación PWA (si está disponible) */}
+        <InstallPrompt />
+
         {activeTab === 'mi-grilla' && <MiGrilla />}
         {activeTab === 'general' && <General />}
         {activeTab === 'cambios' && <Cambios />}
