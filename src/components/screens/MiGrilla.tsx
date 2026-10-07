@@ -19,6 +19,7 @@ export const MiGrilla: React.FC = () => {
     shifts,
     saturdayGuards,
     shiftChanges,
+    holidays,
     isAdminUnlocked,
     setIsCreateChangeModalOpen,
     setIsAuditModalOpen,
@@ -40,13 +41,19 @@ export const MiGrilla: React.FC = () => {
     today.getMonth(),
     shifts,
     saturdayGuards,
-    shiftChanges
+    shiftChanges,
+    holidays
   );
 
   // Guardias de sábado del mes actual (sin registro histórico)
   const currentMonthGuards = getMonthlyGuards(today.getFullYear(), today.getMonth(), saturdayGuards);
   const myGuardsThisMonth = currentMonthGuards.filter(g => g.coach_id === currentCoach.id);
   const nextGuard = myGuardsThisMonth.find(g => new Date(g.date) >= new Date(new Date().setHours(0,0,0,0))) || myGuardsThisMonth[0];
+
+  // Feriados donde trabaja el coach actual
+  const myHolidays = holidays.filter(
+    h => !h.is_closed && (h.coach_id_1 === currentCoach.id || h.coach_id_2 === currentCoach.id)
+  );
 
   const selectedDayShifts = myShifts.filter(s => s.day_of_week === selectedDay);
 
@@ -356,6 +363,42 @@ export const MiGrilla: React.FC = () => {
           })}
         </div>
       </div>
+
+      {/* Jornadas Especiales / Feriados asignados */}
+      {myHolidays.length > 0 && (
+        <div className="bg-malon-card border border-malon-surface rounded-2xl p-4">
+          <h4 className="text-xs font-bold text-malon-sand uppercase tracking-wider mb-2 flex items-center justify-between">
+            <span>Mis Feriados Asignados (Doble Cobertura)</span>
+            <span className="text-[10px] text-malon-sand font-bold">Especial</span>
+          </h4>
+          <div className="space-y-2.5 mt-3">
+            {myHolidays.map(h => {
+              const partner = h.coach_id_1 === currentCoach.id ? h.coach_name_2 : h.coach_name_1;
+              return (
+                <div
+                  key={h.id}
+                  className="p-3 rounded-xl bg-malon-surface/70 border border-malon-sand/40 text-xs space-y-1.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-white text-sm">{h.name}</span>
+                    <span className="px-2 py-0.5 rounded-lg bg-malon-card border border-malon-sand/40 text-malon-sand font-mono font-bold text-xs">
+                      {h.time_display}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-malon-muted text-[11px]">
+                    <span className="font-mono text-white font-semibold">
+                      Fecha: {h.date.split('-').slice(1).reverse().join('/')}
+                    </span>
+                    <span className="text-malon-sand">
+                      En dupla con: <strong className="text-white">{partner}</strong>
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

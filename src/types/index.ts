@@ -56,3 +56,18 @@ export interface ShiftChangeRequest {
   claimed_at?: string;
   confirmed_at?: string;
 }
+
+export interface HolidaySchedule {
+  id: string;
+  date: string; // YYYY-MM-DD
+  name: string; // Nombre del feriado
+  is_closed: boolean; // Si el gimnasio no abre en todo el día
+  selected_hours: string[]; // Horas en punto tildadas (ej: ["09:00", "10:00", "11:00", "12:00"])
+  time_display: string; // Resumen legible (ej: "09:00 a 13:00 hs")
+  total_hours: number; // Cantidad total de horas trabajadas
+  coach_id_1: string;
+  coach_name_1: string;
+  coach_id_2: string;
+  coach_name_2: string;
+  notes?: string;
+}

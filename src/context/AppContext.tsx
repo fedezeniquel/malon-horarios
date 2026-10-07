@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { StaffMember, Shift, SaturdayGuard, ShiftChangeRequest, ShiftChangeType, Franja } from '../types';
-import { INITIAL_STAFF, INITIAL_SHIFTS, INITIAL_SATURDAY_GUARDS, INITIAL_SHIFT_CHANGES } from '../lib/initialData';
+import type { StaffMember, Shift, SaturdayGuard, ShiftChangeRequest, ShiftChangeType, Franja, HolidaySchedule } from '../types';
+import { INITIAL_STAFF, INITIAL_SHIFTS, INITIAL_SATURDAY_GUARDS, INITIAL_SHIFT_CHANGES, INITIAL_HOLIDAYS } from '../lib/initialData';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface AppContextType {
@@ -49,6 +49,14 @@ interface AppContextType {
   setIsGuardModalOpen: (open: boolean) => void;
   isAuditModalOpen: boolean;
   setIsAuditModalOpen: (open: boolean) => void;
+  holidays: HolidaySchedule[];
+  addHoliday: (holiday: Omit<HolidaySchedule, 'id'>) => void;
+  updateHoliday: (holiday: HolidaySchedule) => void;
+  deleteHoliday: (holidayId: string) => void;
+  isHolidayModalOpen: boolean;
+  setIsHolidayModalOpen: (open: boolean) => void;
+  editingHoliday: HolidaySchedule | null;
+  setEditingHoliday: (holiday: HolidaySchedule | null) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -108,6 +116,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return local ? JSON.parse(local) : INITIAL_SHIFT_CHANGES;
   });
 
+  const [holidays, setHolidays] = useState<HolidaySchedule[]>(() => {
+    const version = localStorage.getItem('malon_data_version');
+    if (version !== 'v3_production') {
+      return INITIAL_HOLIDAYS;
+    }
+    const local = localStorage.getItem('malon_holidays');
+    return local ? JSON.parse(local) : INITIAL_HOLIDAYS;
+  });
+
+  const [editingHoliday, setEditingHoliday] = useState<HolidaySchedule | null>(null);
+  const [isHolidayModalOpen, setIsHolidayModalOpen] = useState<boolean>(false);
+
   useEffect(() => {
     localStorage.setItem('malon_shifts', JSON.stringify(shifts));
   }, [shifts]);
@@ -119,6 +139,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('malon_shift_changes', JSON.stringify(shiftChanges));
   }, [shiftChanges]);
+
+  useEffect(() => {
+    localStorage.setItem('malon_holidays', JSON.stringify(holidays));
+  }, [holidays]);
 
   useEffect(() => {
     const client = supabase;
@@ -268,6 +292,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setSaturdayGuards(prev => prev.filter(g => g.id !== guardId));
   };
 
+  // Funciones de administración de feriados
+  const addHoliday = (newHolidayData: Omit<HolidaySchedule, 'id'>) => {
+    const newHoliday: HolidaySchedule = {
+      ...newHolidayData,
+      id: `hol-${Date.now()}`,
+    };
+    setHolidays(prev => [...prev, newHoliday].sort((a, b) => a.date.localeCompare(b.date)));
+  };
+
+  const updateHoliday = (holiday: HolidaySchedule) => {
+    setHolidays(prev =>
+      prev.map(h => (h.id === holiday.id ? holiday : h)).sort((a, b) => a.date.localeCompare(b.date))
+    );
+  };
+
+  const deleteHoliday = (holidayId: string) => {
+    setHolidays(prev => prev.filter(h => h.id !== holidayId));
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -308,6 +351,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsGuardModalOpen,
         isAuditModalOpen,
         setIsAuditModalOpen,
+        holidays,
+        addHoliday,
+        updateHoliday,
+        deleteHoliday,
+        isHolidayModalOpen,
+        setIsHolidayModalOpen,
+        editingHoliday,
+        setEditingHoliday,
       }}
     >
       {children}

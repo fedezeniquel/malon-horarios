@@ -1,4 +1,4 @@
-import type { StaffMember, Shift, SaturdayGuard, ShiftChangeRequest } from '../types';
+import type { StaffMember, Shift, SaturdayGuard, ShiftChangeRequest, HolidaySchedule } from '../types';
 
 export const INITIAL_STAFF: StaffMember[] = [
   { id: 'patri', name: 'Patri', role: 'admin', initials: 'PA', phone: '+5491100000001' },
@@ -587,4 +587,64 @@ export const INITIAL_SATURDAY_GUARDS: SaturdayGuard[] = [
 
 // Pedidos de cambio iniciales (limpio para producción)
 export const INITIAL_SHIFT_CHANGES: ShiftChangeRequest[] = [];
+
+// Feriados y jornadas especiales con doble cobertura
+export const INITIAL_HOLIDAYS: HolidaySchedule[] = [
+  {
+    id: 'hol-2026-10-12',
+    date: '2026-10-12',
+    name: 'Día del Respeto a la Diversidad Cultural',
+    is_closed: false,
+    selected_hours: ['09:00', '10:00', '11:00', '12:00'],
+    time_display: '09:00 a 13:00 hs',
+    total_hours: 4,
+    coach_id_1: 'patri',
+    coach_name_1: 'Patri',
+    coach_id_2: 'fede',
+    coach_name_2: 'Fede',
+    notes: 'Jornada especial feriado - Doble cobertura',
+  },
+  {
+    id: 'hol-2026-11-20',
+    date: '2026-11-20',
+    name: 'Día de la Soberanía Nacional',
+    is_closed: false,
+    selected_hours: ['09:00', '10:00', '11:00', '12:00'],
+    time_display: '09:00 a 13:00 hs',
+    total_hours: 4,
+    coach_id_1: 'vicky',
+    coach_name_1: 'Vicky',
+    coach_id_2: 'gala',
+    coach_name_2: 'Gala',
+    notes: 'Jornada especial feriado - Doble cobertura',
+  },
+  {
+    id: 'hol-2026-12-25',
+    date: '2026-12-25',
+    name: 'Navidad',
+    is_closed: true,
+    selected_hours: [],
+    time_display: 'Cerrado todo el día',
+    total_hours: 0,
+    coach_id_1: '',
+    coach_name_1: '',
+    coach_id_2: '',
+    coach_name_2: '',
+    notes: 'Gimnasio cerrado por fiesta nacional',
+  },
+  {
+    id: 'hol-2027-01-01',
+    date: '2027-01-01',
+    name: 'Año Nuevo',
+    is_closed: true,
+    selected_hours: [],
+    time_display: 'Cerrado todo el día',
+    total_hours: 0,
+    coach_id_1: '',
+    coach_name_1: '',
+    coach_id_2: '',
+    coach_name_2: '',
+    notes: 'Gimnasio cerrado por fiesta nacional',
+  },
+];
 

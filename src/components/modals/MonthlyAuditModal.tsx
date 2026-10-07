@@ -22,6 +22,7 @@ export const MonthlyAuditModal: React.FC = () => {
     shifts,
     saturdayGuards,
     shiftChanges,
+    holidays,
   } = useApp();
 
   const today = new Date();
@@ -54,7 +55,7 @@ export const MonthlyAuditModal: React.FC = () => {
     setMonth(today.getMonth());
   };
 
-  const auditData = calculateMonthlyAudit(year, month, staff, shifts, saturdayGuards, shiftChanges);
+  const auditData = calculateMonthlyAudit(year, month, staff, shifts, saturdayGuards, shiftChanges, holidays);
 
   const totalGymHours = auditData.reduce((acc, c) => acc + c.totalMonthlyHours, 0);
   const activeCoachesCount = auditData.filter(c => c.totalMonthlyHours > 0).length;
@@ -73,6 +74,9 @@ export const MonthlyAuditModal: React.FC = () => {
         let details = `• ${c.coachName.padEnd(12)}: ${c.totalMonthlyHours} hs mes (Semanal: ${c.weeklyHours} hs/sem)`;
         if (c.saturdayMonthlyHours > 0) {
           details += ` [Inc. ${c.saturdayMonthlyHours} hs guardias]`;
+        }
+        if (c.holidayMonthlyHours > 0) {
+          details += ` [Inc. ${c.holidayMonthlyHours} hs feriados]`;
         }
         if (c.shiftChangesDelta !== 0) {
           details += ` [Reemplazos: ${c.shiftChangesDelta > 0 ? '+' : ''}${c.shiftChangesDelta} hs]`;
@@ -266,7 +270,7 @@ export const MonthlyAuditModal: React.FC = () => {
                 </div>
 
                 {/* Desglose de horas del mes */}
-                <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-malon-surface/60 text-[11px]">
+                <div className={`grid ${c.holidayMonthlyHours > 0 ? 'grid-cols-4' : 'grid-cols-3'} gap-1.5 pt-2 border-t border-malon-surface/60 text-[11px]`}>
                   <div className="bg-malon-card/60 p-2 rounded-lg border border-malon-surface/40">
                     <span className="text-malon-muted block text-[10px]">Lun a Vie</span>
                     <span className="font-mono font-bold text-white">{c.regularMonthlyHours} hs</span>
@@ -280,6 +284,15 @@ export const MonthlyAuditModal: React.FC = () => {
                       {c.saturdayMonthlyHours > 0 ? `+${c.saturdayMonthlyHours} hs` : '0 hs'}
                     </span>
                   </div>
+
+                  {c.holidayMonthlyHours > 0 && (
+                    <div className="bg-malon-card/60 p-2 rounded-lg border border-malon-sand/40">
+                      <span className="text-malon-sand block text-[10px]">Feriados</span>
+                      <span className="font-mono font-bold text-malon-sand">
+                        +{c.holidayMonthlyHours} hs
+                      </span>
+                    </div>
+                  )}
 
                   <div className="bg-malon-card/60 p-2 rounded-lg border border-malon-surface/40">
                     <span className="text-malon-muted block text-[10px]">Reemplazos</span>
@@ -299,10 +312,20 @@ export const MonthlyAuditModal: React.FC = () => {
 
                 {/* Sábados asignados si tiene */}
                 {c.saturdayDates.length > 0 && (
-                  <div className="pt-1 flex items-center space-x-1.5 text-[10px] text-malon-sand">
+                  <div className="pt-1 flex items-center space-x-1.5 text-[10px] text-amber-400/90">
                     <Calendar className="w-3 h-3" />
                     <span>
-                      Guardias cubiertas: {c.saturdayDates.map(d => d.split('-').slice(1).reverse().join('/')).join(', ')}
+                      Guardias sábado: {c.saturdayDates.map(d => d.split('-').slice(1).reverse().join('/')).join(', ')}
+                    </span>
+                  </div>
+                )}
+
+                {/* Feriados asignados si tiene */}
+                {c.holidayNames && c.holidayNames.length > 0 && (
+                  <div className="pt-0.5 flex items-center space-x-1.5 text-[10px] text-malon-sand">
+                    <Calendar className="w-3 h-3" />
+                    <span>
+                      Feriados con doble cobertura: {c.holidayNames.join(', ')}
                     </span>
                   </div>
                 )}

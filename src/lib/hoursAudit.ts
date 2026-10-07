@@ -1,4 +1,4 @@
-import type { StaffMember, Shift, SaturdayGuard, ShiftChangeRequest } from '../types';
+import type { StaffMember, Shift, SaturdayGuard, ShiftChangeRequest, HolidaySchedule } from '../types';
 import { getMonthlyGuards } from './guardRotation';
 
 // Horas operativas del gimnasio Malón en Movimiento (24hs)
@@ -62,9 +62,11 @@ export interface CoachMonthlyAudit {
   weeklyHours: number;
   regularMonthlyHours: number;
   saturdayMonthlyHours: number;
+  holidayMonthlyHours: number;
   shiftChangesDelta: number;
   totalMonthlyHours: number;
   saturdayDates: string[];
+  holidayNames: string[];
 }
 
 /**
@@ -94,10 +96,27 @@ export const calculateMonthlyAudit = (
   staff: StaffMember[],
   shifts: Shift[],
   saturdayGuards: SaturdayGuard[],
-  shiftChanges: ShiftChangeRequest[]
+  shiftChanges: ShiftChangeRequest[],
+  holidays: HolidaySchedule[] = []
 ): CoachMonthlyAudit[] => {
   const weekdayCounts = getWeekdayOccurrencesInMonth(year, month);
   const monthlyGuards = getMonthlyGuards(year, month, saturdayGuards);
+
+  // Filtrar feriados de este mes
+  const monthHolidays = holidays.filter(h => {
+    const [hYear, hMonth] = h.date.split('-').map(Number);
+    return hYear === year && (hMonth - 1) === month;
+  });
+
+  // Días de la semana que cayeron en feriado en este mes
+  const holidayWeekdayDeductions: Record<number, number> = {};
+  monthHolidays.forEach(h => {
+    const [y, m, d] = h.date.split('-').map(Number);
+    const dow = new Date(y, m - 1, d).getDay();
+    if (dow >= 1 && dow <= 5) {
+      holidayWeekdayDeductions[dow] = (holidayWeekdayDeductions[dow] || 0) + 1;
+    }
+  });
 
   // Filtrar cambios confirmados para el mes seleccionado
   const monthChanges = shiftChanges.filter(c => {
@@ -111,10 +130,12 @@ export const calculateMonthlyAudit = (
     const coachShifts = shifts.filter(s => s.coach_id === coach.id);
     const weeklyHours = coachShifts.reduce((acc, s) => acc + s.duration_hours, 0);
 
-    // 2. Horas regulares en el mes (multiplicadas por la cantidad exacta de días hábiles)
+    // 2. Horas regulares en el mes (descontando feriados donde no se hizo el turno habitual)
     const regularMonthlyHours = coachShifts.reduce((acc, s) => {
       const timesInMonth = weekdayCounts[s.day_of_week] || 0;
-      return acc + s.duration_hours * timesInMonth;
+      const holidayDeduction = holidayWeekdayDeductions[s.day_of_week] || 0;
+      const actualTimes = Math.max(0, timesInMonth - holidayDeduction);
+      return acc + s.duration_hours * actualTimes;
     }, 0);
 
     // 3. Guardias de sábado asignadas este mes
@@ -125,7 +146,14 @@ export const calculateMonthlyAudit = (
     }, 0);
     const saturdayDates = myGuardsThisMonth.map(g => g.date);
 
-    // 4. Cambios y reemplazos confirmados (+ si cubrió, - si pidió reemplazo)
+    // 4. Horas de Feriados trabajadas (Doble Cobertura)
+    const myHolidaysThisMonth = monthHolidays.filter(
+      h => !h.is_closed && (h.coach_id_1 === coach.id || h.coach_id_2 === coach.id)
+    );
+    const holidayMonthlyHours = myHolidaysThisMonth.reduce((acc, h) => acc + (h.total_hours || 0), 0);
+    const holidayNames = myHolidaysThisMonth.map(h => `${h.name} (${h.date.split('-').slice(1).reverse().join('/')})`);
+
+    // 5. Cambios y reemplazos confirmados (+ si cubrió, - si pidió reemplazo)
     let shiftChangesDelta = 0;
     monthChanges.forEach(ch => {
       const duration = calculateDurationHours(ch.start_time, ch.end_time);
@@ -137,7 +165,7 @@ export const calculateMonthlyAudit = (
       }
     });
 
-    const totalMonthlyHours = Math.max(0, regularMonthlyHours + saturdayMonthlyHours + shiftChangesDelta);
+    const totalMonthlyHours = Math.max(0, regularMonthlyHours + saturdayMonthlyHours + holidayMonthlyHours + shiftChangesDelta);
 
     return {
       coachId: coach.id,
@@ -147,9 +175,11 @@ export const calculateMonthlyAudit = (
       weeklyHours: parseFloat(weeklyHours.toFixed(1)),
       regularMonthlyHours: parseFloat(regularMonthlyHours.toFixed(1)),
       saturdayMonthlyHours: parseFloat(saturdayMonthlyHours.toFixed(1)),
+      holidayMonthlyHours: parseFloat(holidayMonthlyHours.toFixed(1)),
       shiftChangesDelta: parseFloat(shiftChangesDelta.toFixed(1)),
       totalMonthlyHours: parseFloat(totalMonthlyHours.toFixed(1)),
       saturdayDates,
+      holidayNames,
     };
   });
 };
@@ -163,16 +193,19 @@ export const calculateCoachMonthlyHours = (
   month: number,
   shifts: Shift[],
   saturdayGuards: SaturdayGuard[],
-  shiftChanges: ShiftChangeRequest[]
+  shiftChanges: ShiftChangeRequest[],
+  holidays: HolidaySchedule[] = []
 ) => {
   const dummyStaff: StaffMember[] = [{ id: coachId, name: '', role: 'coach', initials: '' }];
-  const audit = calculateMonthlyAudit(year, month, dummyStaff, shifts, saturdayGuards, shiftChanges);
+  const audit = calculateMonthlyAudit(year, month, dummyStaff, shifts, saturdayGuards, shiftChanges, holidays);
   return audit[0] || {
     weeklyHours: 0,
     regularMonthlyHours: 0,
     saturdayMonthlyHours: 0,
+    holidayMonthlyHours: 0,
     shiftChangesDelta: 0,
     totalMonthlyHours: 0,
     saturdayDates: [],
+    holidayNames: [],
   };
 };
