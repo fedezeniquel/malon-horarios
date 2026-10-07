@@ -122,7 +122,7 @@ export const EditGuardModal: React.FC = () => {
           {/* Profesor Asignado */}
           <div>
             <label className="font-semibold text-malon-sand uppercase tracking-wider block mb-1.5">
-              Profesor Designado para Cubrir
+              Coach Designado para Cubrir
             </label>
             <select
               value={coachId}

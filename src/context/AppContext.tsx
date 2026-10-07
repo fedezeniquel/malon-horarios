@@ -143,9 +143,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setCurrentCoach = (coach: StaffMember) => {
     setCurrentCoachState(coach);
     localStorage.setItem('malon_current_coach_id', coach.id);
+    // Si el nuevo perfil seleccionado no es admin ni coach_admin, bloquear modo jefe
+    if (coach.role !== 'admin' && coach.role !== 'coach_admin') {
+      setIsAdminUnlocked(false);
+    }
   };
 
   const verifyAdminPin = (pin: string): boolean => {
+    // Solo permitir acceso si el usuario activo tiene rol admin o coach_admin
+    if (currentCoach.role !== 'admin' && currentCoach.role !== 'coach_admin') {
+      return false;
+    }
     if (pin === MASTER_PIN || pin === '1988' || pin === '1234') {
       setIsAdminUnlocked(true);
       return true;

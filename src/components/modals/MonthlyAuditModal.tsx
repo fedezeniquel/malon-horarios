@@ -106,7 +106,7 @@ export const MonthlyAuditModal: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-malon-muted">
-                Cierre de mes y control para liquidación de profes
+                Cierre de mes y control para liquidación de coaches
               </p>
             </div>
           </div>

@@ -43,7 +43,7 @@ export const CoachPickerModal: React.FC = () => {
           </button>
         </div>
 
-        {/* Lista de profesores */}
+        {/* Lista de coaches */}
         <div className="p-3 overflow-y-auto space-y-2 flex-1">
           {staff.map(member => {
             const isSelected = member.id === currentCoach.id;

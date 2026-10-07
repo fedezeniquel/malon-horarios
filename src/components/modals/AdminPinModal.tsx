@@ -3,11 +3,45 @@ import { useApp } from '../../context/AppContext';
 import { Shield, X, Delete } from 'lucide-react';
 
 export const AdminPinModal: React.FC = () => {
-  const { isPinModalOpen, setIsPinModalOpen, verifyAdminPin } = useApp();
+  const { currentCoach, isPinModalOpen, setIsPinModalOpen, verifyAdminPin } = useApp();
   const [pin, setPin] = useState('');
   const [error, setError] = useState(false);
 
   if (!isPinModalOpen) return null;
+
+  const handleClose = () => {
+    setPin('');
+    setError(false);
+    setIsPinModalOpen(false);
+  };
+
+  if (currentCoach.role !== 'admin' && currentCoach.role !== 'coach_admin') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+        <div className="bg-malon-card border border-malon-surface rounded-2xl w-full max-w-xs p-6 shadow-2xl relative text-center">
+          <button
+            onClick={handleClose}
+            className="absolute top-4 right-4 text-malon-muted hover:text-white p-1 rounded-full bg-malon-surface/50"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/30 mx-auto flex items-center justify-center mb-3">
+            <Shield className="w-6 h-6 text-red-400" />
+          </div>
+          <h3 className="text-base font-bold text-white mb-1">Acceso Restringido</h3>
+          <p className="text-xs text-malon-muted mb-4">
+            Solo los usuarios con rol <strong>Admin</strong> o <strong>Coach Admin</strong> tienen autorización para ingresar el PIN Jefe.
+          </p>
+          <button
+            onClick={handleClose}
+            className="w-full bg-malon-surface hover:bg-malon-surface/80 text-white font-bold py-2.5 rounded-xl text-xs transition-all"
+          >
+            Entendido
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const handleKeyPress = (digit: string) => {
     if (pin.length < 4) {
@@ -35,12 +69,6 @@ export const AdminPinModal: React.FC = () => {
   const handleDelete = () => {
     setPin(prev => prev.slice(0, -1));
     setError(false);
-  };
-
-  const handleClose = () => {
-    setPin('');
-    setError(false);
-    setIsPinModalOpen(false);
   };
 
   return (

@@ -31,6 +31,7 @@ const DAYS = [
 
 export const General: React.FC = () => {
   const {
+    currentCoach,
     shifts,
     saturdayGuards,
     isAdminUnlocked,
@@ -218,13 +219,15 @@ export const General: React.FC = () => {
       ) : (
         <div className="bg-malon-card border border-malon-surface rounded-xl p-3 flex items-center justify-between text-xs">
           <span className="text-malon-muted">Cronograma de coaches y guardias en sala</span>
-          <button
-            onClick={() => setIsPinModalOpen(true)}
-            className="text-[11px] font-bold text-malon-sand hover:text-white flex items-center space-x-1"
-          >
-            <Shield className="w-3.5 h-3.5" />
-            <span>Acceso PIN Jefe</span>
-          </button>
+          {(currentCoach.role === 'admin' || currentCoach.role === 'coach_admin') && (
+            <button
+              onClick={() => setIsPinModalOpen(true)}
+              className="text-[11px] font-bold text-malon-sand hover:text-white flex items-center space-x-1"
+            >
+              <Shield className="w-3.5 h-3.5" />
+              <span>Acceso PIN Jefe</span>
+            </button>
+          )}
         </div>
       )}
 

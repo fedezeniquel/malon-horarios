@@ -29,7 +29,7 @@ export const Header: React.FC = () => {
           <button
             onClick={() => setIsCoachPickerOpen(true)}
             className="flex items-center space-x-1.5 bg-malon-card hover:bg-malon-surface border border-malon-surface px-2.5 py-1.5 rounded-full transition-all text-xs"
-            title="Cambiar profesor activo"
+            title="Cambiar coach activo"
           >
             <div className="w-5 h-5 rounded-full bg-malon-surface flex items-center justify-center text-[10px] font-bold text-malon-sand">
               {currentCoach.initials}
@@ -40,26 +40,28 @@ export const Header: React.FC = () => {
             <ChevronDown className="w-3 h-3 text-malon-muted" />
           </button>
 
-          {/* PIN JEFE button */}
-          {isAdminUnlocked ? (
-            <button
-              onClick={lockAdmin}
-              className="flex items-center space-x-1 bg-malon-red/20 border border-malon-red text-malon-red hover:bg-malon-red/30 px-2.5 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm shadow-malon-red/10 animate-pulse"
-              title="Modo Jefe activo. Clic para bloquear."
-            >
-              <ShieldAlert className="w-3.5 h-3.5 text-malon-red" />
-              <span className="hidden sm:inline">JEFE</span>
-              <span>🔒</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => setIsPinModalOpen(true)}
-              className="flex items-center space-x-1 bg-malon-card hover:bg-malon-surface border border-malon-surface text-malon-muted hover:text-malon-white px-2.5 py-1.5 rounded-full text-xs font-medium transition-all"
-              title="Acceso administrativo con PIN"
-            >
-              <Shield className="w-3.5 h-3.5 text-malon-sand" />
-              <span>PIN JEFE</span>
-            </button>
+          {/* PIN JEFE button (Solo para roles admin o coach_admin) */}
+          {(currentCoach.role === 'admin' || currentCoach.role === 'coach_admin') && (
+            isAdminUnlocked ? (
+              <button
+                onClick={lockAdmin}
+                className="flex items-center space-x-1 bg-malon-red/20 border border-malon-red text-malon-red hover:bg-malon-red/30 px-2.5 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm shadow-malon-red/10 animate-pulse"
+                title="Modo Jefe activo. Clic para bloquear."
+              >
+                <ShieldAlert className="w-3.5 h-3.5 text-malon-red" />
+                <span className="hidden sm:inline">JEFE</span>
+                <span>🔒</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => setIsPinModalOpen(true)}
+                className="flex items-center space-x-1 bg-malon-card hover:bg-malon-surface border border-malon-surface text-malon-muted hover:text-white px-2.5 py-1.5 rounded-full text-xs font-medium transition-all"
+                title="Acceso administrativo con PIN"
+              >
+                <Shield className="w-3.5 h-3.5 text-malon-sand" />
+                <span>PIN JEFE</span>
+              </button>
+            )
           )}
         </div>
       </div>

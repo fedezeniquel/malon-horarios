@@ -41,6 +41,19 @@ export const getAvailableEndHours = (startTime: string): string[] => {
   return WORKING_HOURS.filter(h => h > startTime);
 };
 
+/**
+ * Retorna todos los intervalos en horas en punto entre un inicio y un fin (ej. 09:00 a 13:00 -> [09:00, 10:00, 11:00, 12:00, 13:00])
+ */
+export const getHoursBetween = (start: string, end: string): string[] => {
+  const [h1] = start.split(':').map(Number);
+  const [h2] = end.split(':').map(Number);
+  const hours: string[] = [];
+  for (let h = h1; h <= h2; h++) {
+    hours.push(`${String(h).padStart(2, '0')}:00`);
+  }
+  return hours;
+};
+
 export interface CoachMonthlyAudit {
   coachId: string;
   coachName: string;

@@ -201,7 +201,7 @@ export const EditShiftModal: React.FC = () => {
           {/* Profesor Titular */}
           <div>
             <label className="font-semibold text-malon-sand uppercase tracking-wider block mb-1.5">
-              Profesor Titular Asignado
+              Coach Titular Asignado
             </label>
             <select
               value={coachId}
