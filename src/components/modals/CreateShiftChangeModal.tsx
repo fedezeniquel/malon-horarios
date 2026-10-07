@@ -40,8 +40,6 @@ export const CreateShiftChangeModal: React.FC = () => {
   const [reason, setReason] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  if (!isCreateChangeModalOpen) return null;
-
   // 1. Computar turnos asignados del coach en la fecha seleccionada
   const [year, month, day] = targetDate.split('-').map(Number);
   const dateObj = new Date(year, month - 1, day);
@@ -77,6 +75,29 @@ export const CreateShiftChangeModal: React.FC = () => {
   })();
 
   const coachShiftsOnDate = dayOfWeek === 6 ? saturdayShiftList : weekdayShifts;
+  // Sincronizar fecha válida y limpiar estados al abrir el modal
+  useEffect(() => {
+    if (isCreateChangeModalOpen) {
+      const coachDays = new Set(
+        shifts.filter(s => s.coach_id === currentCoach.id).map(s => s.day_of_week)
+      );
+      const today = new Date();
+      let foundDate = today.toISOString().split('T')[0];
+      for (let i = 0; i < 7; i++) {
+        const candidate = new Date();
+        candidate.setDate(today.getDate() + i);
+        if (coachDays.has(candidate.getDay())) {
+          foundDate = candidate.toISOString().split('T')[0];
+          break;
+        }
+      }
+      setTargetDate(foundDate);
+      setSelectedShiftIndex(0);
+      setReason('');
+      setErrorMessage(null);
+    }
+  }, [isCreateChangeModalOpen, currentCoach.id]);
+
   const activeShift = coachShiftsOnDate[selectedShiftIndex] || coachShiftsOnDate[0];
 
   // Actualizar horarios según el turno activo seleccionado
@@ -178,6 +199,8 @@ export const CreateShiftChangeModal: React.FC = () => {
     setReason('');
     setErrorMessage(null);
   };
+
+  if (!isCreateChangeModalOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
