@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { X, Trash2, Calendar, Check } from 'lucide-react';
 import type { SaturdayGuard } from '../../types';
+import { START_HOURS, getAvailableEndHours } from '../../lib/hoursAudit';
 
 export const EditGuardModal: React.FC = () => {
   const {
@@ -136,31 +137,47 @@ export const EditGuardModal: React.FC = () => {
             </select>
           </div>
 
-          {/* Horario de la Guardia */}
+          {/* Horario de la Guardia en Formato 24hs */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="font-semibold text-malon-muted block mb-1">
-                Desde
+                Desde (24hs)
               </label>
-              <input
-                type="time"
-                required
+              <select
                 value={startTime}
-                onChange={e => setStartTime(e.target.value)}
-                className="w-full bg-malon-surface/60 border border-malon-surface rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-malon-sand font-mono"
-              />
+                onChange={e => {
+                  const newStart = e.target.value;
+                  setStartTime(newStart);
+                  if (endTime <= newStart) {
+                    const [h] = newStart.split(':').map(Number);
+                    const nextH = Math.min(h + 1, 21);
+                    setEndTime(`${String(nextH).padStart(2, '0')}:00`);
+                  }
+                }}
+                className="w-full bg-malon-surface/70 border border-malon-surface rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-malon-sand font-mono"
+              >
+                {START_HOURS.map(hour => (
+                  <option key={hour} value={hour} className="bg-malon-card text-white">
+                    {hour} hs
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="font-semibold text-malon-muted block mb-1">
-                Hasta
+                Hasta (24hs)
               </label>
-              <input
-                type="time"
-                required
+              <select
                 value={endTime}
                 onChange={e => setEndTime(e.target.value)}
-                className="w-full bg-malon-surface/60 border border-malon-surface rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-malon-sand font-mono"
-              />
+                className="w-full bg-malon-surface/70 border border-malon-surface rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-malon-sand font-mono"
+              >
+                {getAvailableEndHours(startTime).map(hour => (
+                  <option key={hour} value={hour} className="bg-malon-card text-white">
+                    {hour} hs
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

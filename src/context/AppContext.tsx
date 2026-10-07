@@ -47,6 +47,8 @@ interface AppContextType {
   setEditingGuard: (guard: SaturdayGuard | null) => void;
   isGuardModalOpen: boolean;
   setIsGuardModalOpen: (open: boolean) => void;
+  isAuditModalOpen: boolean;
+  setIsAuditModalOpen: (open: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -73,6 +75,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isShiftModalOpen, setIsShiftModalOpen] = useState<boolean>(false);
   const [editingGuard, setEditingGuard] = useState<SaturdayGuard | null>(null);
   const [isGuardModalOpen, setIsGuardModalOpen] = useState<boolean>(false);
+  const [isAuditModalOpen, setIsAuditModalOpen] = useState<boolean>(false);
 
   const [shifts, setShifts] = useState<Shift[]>(() => {
     const version = localStorage.getItem('malon_data_version');
@@ -295,6 +298,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setEditingGuard,
         isGuardModalOpen,
         setIsGuardModalOpen,
+        isAuditModalOpen,
+        setIsAuditModalOpen,
       }}
     >
       {children}

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { X } from 'lucide-react';
+import { X, Clock, AlertCircle } from 'lucide-react';
 import type { ShiftChangeType, Franja } from '../../types';
+import { START_HOURS, getAvailableEndHours, calculateDurationHours } from '../../lib/hoursAudit';
 
 export const CreateShiftChangeModal: React.FC = () => {
   const { isCreateChangeModalOpen, setIsCreateChangeModalOpen, createShiftChange } = useApp();
@@ -15,11 +16,82 @@ export const CreateShiftChangeModal: React.FC = () => {
   const [endTime, setEndTime] = useState('08:00');
   const [franja, setFranja] = useState<Franja>('manana');
   const [reason, setReason] = useState('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!isCreateChangeModalOpen) return null;
 
+  // Calcula la hora de fin para 1 hora suelta
+  const getNextHour = (start: string): string => {
+    const [h] = start.split(':').map(Number);
+    const nextH = Math.min(h + 1, 21);
+    return `${String(nextH).padStart(2, '0')}:00`;
+  };
+
+  const handleTypeChange = (newType: ShiftChangeType) => {
+    setType(newType);
+    setErrorMessage(null);
+
+    if (newType === 'single_hour') {
+      const nextH = getNextHour(startTime);
+      setEndTime(nextH);
+    } else if (newType === 'full_shift') {
+      applyFranjaHours(franja);
+    }
+  };
+
+  const applyFranjaHours = (selectedFranja: Franja) => {
+    if (selectedFranja === 'manana') {
+      setStartTime('07:00');
+      setEndTime('13:00');
+    } else if (selectedFranja === 'tarde') {
+      setStartTime('13:00');
+      setEndTime('18:00');
+    } else if (selectedFranja === 'noche') {
+      setStartTime('18:00');
+      setEndTime('21:00');
+    } else if (selectedFranja === 'sabado') {
+      setStartTime('11:00');
+      setEndTime('14:00');
+    }
+  };
+
+  const handleFranjaChange = (newFranja: Franja) => {
+    setFranja(newFranja);
+    setErrorMessage(null);
+    if (type === 'full_shift') {
+      applyFranjaHours(newFranja);
+    }
+  };
+
+  const handleStartTimeChange = (newStart: string) => {
+    setStartTime(newStart);
+    setErrorMessage(null);
+
+    if (type === 'single_hour') {
+      setEndTime(getNextHour(newStart));
+    } else {
+      // Si la hora de fin actual no es posterior a la nueva hora de inicio, ajustar hacia adelante
+      if (endTime <= newStart) {
+        setEndTime(getNextHour(newStart));
+      }
+    }
+  };
+
+  const handleEndTimeChange = (newEnd: string) => {
+    setEndTime(newEnd);
+    setErrorMessage(null);
+  };
+
+  const availableEndHours = getAvailableEndHours(startTime);
+  const currentDuration = calculateDurationHours(startTime, endTime);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (startTime >= endTime) {
+      setErrorMessage('El horario "Hasta" debe ser estrictamente posterior al horario "Desde".');
+      return;
+    }
 
     const [year, month, day] = targetDate.split('-').map(Number);
     const dateObj = new Date(year, month - 1, day);
@@ -38,6 +110,7 @@ export const CreateShiftChangeModal: React.FC = () => {
 
     setIsCreateChangeModalOpen(false);
     setReason('');
+    setErrorMessage(null);
   };
 
   return (
@@ -61,6 +134,13 @@ export const CreateShiftChangeModal: React.FC = () => {
 
         {/* Formulario */}
         <form onSubmit={handleSubmit} className="p-4 overflow-y-auto space-y-4 flex-1">
+          {errorMessage && (
+            <div className="bg-red-500/10 border border-red-500/40 rounded-xl p-3 flex items-start space-x-2 text-red-400 text-xs">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           {/* Tipo de cambio */}
           <div>
             <label className="text-xs font-semibold text-malon-sand uppercase tracking-wider block mb-1.5">
@@ -69,10 +149,7 @@ export const CreateShiftChangeModal: React.FC = () => {
             <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setType('single_hour');
-                  setEndTime('08:00');
-                }}
+                onClick={() => handleTypeChange('single_hour')}
                 className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all text-center ${
                   type === 'single_hour'
                     ? 'bg-malon-red/20 border-malon-red text-white'
@@ -83,7 +160,7 @@ export const CreateShiftChangeModal: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => setType('multiple_hours')}
+                onClick={() => handleTypeChange('multiple_hours')}
                 className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all text-center ${
                   type === 'multiple_hours'
                     ? 'bg-malon-red/20 border-malon-red text-white'
@@ -94,19 +171,7 @@ export const CreateShiftChangeModal: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setType('full_shift');
-                  if (franja === 'manana') {
-                    setStartTime('07:00');
-                    setEndTime('13:00');
-                  } else if (franja === 'tarde') {
-                    setStartTime('13:00');
-                    setEndTime('18:00');
-                  } else {
-                    setStartTime('18:00');
-                    setEndTime('21:00');
-                  }
-                }}
+                onClick={() => handleTypeChange('full_shift')}
                 className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all text-center ${
                   type === 'full_shift'
                     ? 'bg-malon-red/20 border-malon-red text-white'
@@ -129,7 +194,7 @@ export const CreateShiftChangeModal: React.FC = () => {
                 required
                 value={targetDate}
                 onChange={e => setTargetDate(e.target.value)}
-                className="w-full bg-malon-surface/60 border border-malon-surface rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-malon-sand"
+                className="w-full bg-malon-surface/60 border border-malon-surface rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-malon-sand font-mono"
               />
             </div>
           </div>
@@ -149,7 +214,7 @@ export const CreateShiftChangeModal: React.FC = () => {
                 <button
                   key={f.id}
                   type="button"
-                  onClick={() => setFranja(f.id as Franja)}
+                  onClick={() => handleFranjaChange(f.id as Franja)}
                   className={`py-2 rounded-lg text-xs font-medium border text-center transition-all ${
                     franja === f.id
                       ? 'bg-malon-sand/20 border-malon-sand text-malon-sand font-bold'
@@ -162,31 +227,59 @@ export const CreateShiftChangeModal: React.FC = () => {
             </div>
           </div>
 
-          {/* Horario de inicio y fin */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-semibold text-malon-muted block mb-1">
-                Desde
+          {/* Horario de inicio y fin en Formato 24hs estricto (07 a 21) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-malon-sand uppercase tracking-wider">
+                Horario de Cobertura (Formato 24hs)
               </label>
-              <input
-                type="time"
-                required
-                value={startTime}
-                onChange={e => setStartTime(e.target.value)}
-                className="w-full bg-malon-surface/60 border border-malon-surface rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-malon-sand"
-              />
+              <span className="text-[11px] font-mono font-bold text-malon-sand flex items-center space-x-1">
+                <Clock className="w-3 h-3 inline mr-0.5" />
+                <span>{currentDuration} {currentDuration === 1 ? 'hora' : 'horas'}</span>
+              </span>
             </div>
-            <div>
-              <label className="text-xs font-semibold text-malon-muted block mb-1">
-                Hasta
-              </label>
-              <input
-                type="time"
-                required
-                value={endTime}
-                onChange={e => setEndTime(e.target.value)}
-                className="w-full bg-malon-surface/60 border border-malon-surface rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-malon-sand"
-              />
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-malon-muted block mb-1">
+                  Desde
+                </label>
+                <select
+                  value={startTime}
+                  onChange={e => handleStartTimeChange(e.target.value)}
+                  className="w-full bg-malon-surface/70 border border-malon-surface rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-malon-sand font-mono"
+                >
+                  {START_HOURS.map(hour => (
+                    <option key={hour} value={hour} className="bg-malon-card text-white">
+                      {hour} hs
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-malon-muted block mb-1">
+                  Hasta
+                </label>
+                {type === 'single_hour' ? (
+                  <div className="w-full bg-malon-surface/40 border border-malon-surface/60 rounded-xl px-3 py-2.5 text-sm text-white/90 font-mono flex items-center justify-between">
+                    <span>{endTime} hs</span>
+                    <span className="text-[10px] text-malon-sand font-bold uppercase">1h fija</span>
+                  </div>
+                ) : (
+                  <select
+                    value={endTime}
+                    onChange={e => handleEndTimeChange(e.target.value)}
+                    className="w-full bg-malon-surface/70 border border-malon-surface rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-malon-sand font-mono"
+                  >
+                    {availableEndHours.map(hour => (
+                      <option key={hour} value={hour} className="bg-malon-card text-white">
+                        {hour} hs
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
             </div>
           </div>
 
@@ -208,7 +301,7 @@ export const CreateShiftChangeModal: React.FC = () => {
           <div className="pt-2">
             <button
               type="submit"
-              className="w-full bg-malon-red hover:bg-malon-red-hover text-white font-bold py-3 rounded-xl shadow-lg shadow-malon-red/20 transition-all flex items-center justify-center space-x-2"
+              className="w-full bg-malon-red hover:bg-malon-red-hover active:scale-98 text-white font-bold py-3 rounded-xl shadow-lg shadow-malon-red/20 transition-all flex items-center justify-center space-x-2"
             >
               <span>Publicar en Bolsa de Cambios</span>
             </button>

@@ -10,6 +10,7 @@ import { CoachPickerModal } from './components/modals/CoachPickerModal';
 import { CreateShiftChangeModal } from './components/modals/CreateShiftChangeModal';
 import { EditShiftModal } from './components/modals/EditShiftModal';
 import { EditGuardModal } from './components/modals/EditGuardModal';
+import { MonthlyAuditModal } from './components/modals/MonthlyAuditModal';
 import { InstallPrompt } from './components/InstallPrompt';
 
 const AppContent: React.FC = () => {
@@ -39,6 +40,7 @@ const AppContent: React.FC = () => {
       <CreateShiftChangeModal />
       <EditShiftModal />
       <EditGuardModal />
+      <MonthlyAuditModal />
     </div>
   );
 };

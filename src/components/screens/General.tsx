@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   RotateCcw,
+  FileSpreadsheet,
 } from 'lucide-react';
 import type { Shift, SaturdayGuard } from '../../types';
 import { getMonthlyGuards, MONTH_NAMES } from '../../lib/guardRotation';
@@ -34,13 +35,14 @@ export const General: React.FC = () => {
     saturdayGuards,
     isAdminUnlocked,
     setIsPinModalOpen,
+    setIsAuditModalOpen,
     setEditingShift,
     setIsShiftModalOpen,
     setEditingGuard,
     setIsGuardModalOpen,
     deleteSaturdayGuard,
   } = useApp();
-  
+
   const [selectedDay, setSelectedDay] = useState<number>(() => {
     const day = new Date().getDay();
     return day === 0 ? 1 : day;
@@ -102,9 +104,9 @@ export const General: React.FC = () => {
       if (shift.is_double_coverage) {
         const partner = shiftList.find(
           s => s.id !== shift.id &&
-               s.is_double_coverage &&
-               s.start_time === shift.start_time &&
-               s.end_time === shift.end_time
+            s.is_double_coverage &&
+            s.start_time === shift.start_time &&
+            s.end_time === shift.end_time
         );
 
         if (partner) {
@@ -184,27 +186,38 @@ export const General: React.FC = () => {
             </div>
           </div>
 
-          {selectedDay !== 6 ? (
+          <div className="flex items-center space-x-1.5">
             <button
-              onClick={handleCreateShift}
-              className="bg-malon-red hover:bg-malon-red-hover text-white px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1 shadow"
+              onClick={() => setIsAuditModalOpen(true)}
+              className="bg-malon-surface/90 hover:bg-malon-surface border border-malon-sand/40 text-malon-sand hover:text-white px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1 shadow"
+              title="Auditoría de Horas y Liquidación"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Turno</span>
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Auditoría</span>
             </button>
-          ) : (
-            <button
-              onClick={handleCreateGuard}
-              className="bg-malon-sand hover:bg-malon-sand-hover text-black px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1 shadow"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Sábado</span>
-            </button>
-          )}
+
+            {selectedDay !== 6 ? (
+              <button
+                onClick={handleCreateShift}
+                className="bg-malon-red hover:bg-malon-red-hover text-white px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1 shadow"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Turno</span>
+              </button>
+            ) : (
+              <button
+                onClick={handleCreateGuard}
+                className="bg-malon-sand hover:bg-malon-sand-hover text-black px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1 shadow"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Sábado</span>
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <div className="bg-malon-card border border-malon-surface rounded-xl p-3 flex items-center justify-between text-xs">
-          <span className="text-malon-muted">Cronograma de profesores y guardias en sala</span>
+          <span className="text-malon-muted">Cronograma de coaches y guardias en sala</span>
           <button
             onClick={() => setIsPinModalOpen(true)}
             className="text-[11px] font-bold text-malon-sand hover:text-white flex items-center space-x-1"
@@ -223,11 +236,10 @@ export const General: React.FC = () => {
             <button
               key={d.id}
               onClick={() => setSelectedDay(d.id)}
-              className={`flex-1 min-w-[50px] py-2 rounded-xl text-center transition-all ${
-                isSelected
-                  ? 'bg-malon-red text-white font-bold shadow-md shadow-malon-red/20'
-                  : 'text-malon-muted hover:text-white hover:bg-malon-surface/50 font-medium'
-              }`}
+              className={`flex-1 min-w-[50px] py-2 rounded-xl text-center transition-all ${isSelected
+                ? 'bg-malon-red text-white font-bold shadow-md shadow-malon-red/20'
+                : 'text-malon-muted hover:text-white hover:bg-malon-surface/50 font-medium'
+                }`}
             >
               <span className="text-xs block leading-tight">{d.short}</span>
             </button>
@@ -411,11 +423,10 @@ export const General: React.FC = () => {
               {groupDoubleShifts(mananaShifts).map((block, i) => (
                 <div
                   key={i}
-                  className={`p-3 rounded-xl border transition-all ${
-                    block.isDouble
-                      ? 'bg-gradient-to-r from-malon-surface to-malon-surface/80 border-malon-sand/40 shadow-sm'
-                      : 'bg-malon-bg/50 border-malon-surface/60'
-                  }`}
+                  className={`p-3 rounded-xl border transition-all ${block.isDouble
+                    ? 'bg-gradient-to-r from-malon-surface to-malon-surface/80 border-malon-sand/40 shadow-sm'
+                    : 'bg-malon-bg/50 border-malon-surface/60'
+                    }`}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-mono font-bold text-white">
@@ -446,11 +457,10 @@ export const General: React.FC = () => {
                     {block.coaches.map((cName, idx) => (
                       <div
                         key={idx}
-                        className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${
-                          block.isDouble
-                            ? 'bg-malon-card text-malon-sand border border-malon-sand/30'
-                            : 'bg-malon-surface text-white'
-                        }`}
+                        className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${block.isDouble
+                          ? 'bg-malon-card text-malon-sand border border-malon-sand/30'
+                          : 'bg-malon-surface text-white'
+                          }`}
                       >
                         <div className="w-4 h-4 rounded-full bg-malon-sand/20 text-malon-sand flex items-center justify-center text-[9px] font-black">
                           {cName.slice(0, 2).toUpperCase()}
@@ -558,7 +568,7 @@ export const General: React.FC = () => {
                     <div className="flex items-center space-x-2">
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30 flex items-center space-x-1">
                         <Users className="w-3 h-3" />
-                        <span>DOBLE COBERTURA SIMULTÁNEA</span>
+                        <span>DOBLE COBERTURA</span>
                       </span>
 
                       {isAdminUnlocked && (

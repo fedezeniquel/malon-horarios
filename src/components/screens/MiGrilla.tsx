@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Clock, Calendar, ArrowLeftRight, Users, CheckCircle2 } from 'lucide-react';
+import { Clock, Calendar, ArrowLeftRight, Users, CheckCircle2, FileSpreadsheet, Hourglass } from 'lucide-react';
 import { getMonthlyGuards, MONTH_NAMES } from '../../lib/guardRotation';
+import { calculateCoachMonthlyHours } from '../../lib/hoursAudit';
 
 const DAYS_OF_WEEK = [
   { id: 1, name: 'Lun', fullName: 'Lunes' },
@@ -13,7 +14,15 @@ const DAYS_OF_WEEK = [
 ];
 
 export const MiGrilla: React.FC = () => {
-  const { currentCoach, shifts, saturdayGuards, setIsCreateChangeModalOpen } = useApp();
+  const {
+    currentCoach,
+    shifts,
+    saturdayGuards,
+    shiftChanges,
+    isAdminUnlocked,
+    setIsCreateChangeModalOpen,
+    setIsAuditModalOpen,
+  } = useApp();
   
   const today = new Date();
   const [selectedDay, setSelectedDay] = useState<number>(() => {
@@ -23,6 +32,16 @@ export const MiGrilla: React.FC = () => {
 
   const myShifts = shifts.filter(s => s.coach_id === currentCoach.id);
   const weeklyHours = myShifts.reduce((acc, curr) => acc + curr.duration_hours, 0);
+
+  // Auditoría mensual del coach en curso
+  const coachMonthly = calculateCoachMonthlyHours(
+    currentCoach.id,
+    today.getFullYear(),
+    today.getMonth(),
+    shifts,
+    saturdayGuards,
+    shiftChanges
+  );
 
   // Guardias de sábado del mes actual (sin registro histórico)
   const currentMonthGuards = getMonthlyGuards(today.getFullYear(), today.getMonth(), saturdayGuards);
@@ -64,38 +83,69 @@ export const MiGrilla: React.FC = () => {
           </button>
         </div>
 
-        {/* Métricas destacadas */}
-        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-malon-surface/80">
-          <div className="bg-malon-bg/60 rounded-xl p-3 border border-malon-surface/50">
-            <div className="flex items-center space-x-1.5 text-malon-muted text-xs mb-1">
-              <Clock className="w-3.5 h-3.5 text-malon-sand" />
-              <span>Carga Semanal</span>
+        {/* Métricas destacadas: Semanal, Mensual y Guardia */}
+        <div className="grid grid-cols-3 gap-2 pt-2 border-t border-malon-surface/80">
+          <div className="bg-malon-bg/60 rounded-xl p-2.5 border border-malon-surface/50 text-center">
+            <div className="flex items-center justify-center space-x-1 text-malon-muted text-[10px] mb-1">
+              <Clock className="w-3 h-3 text-malon-sand" />
+              <span>Semanal</span>
             </div>
-            <div className="flex items-baseline space-x-1">
-              <span className="text-2xl font-black text-white">{weeklyHours}</span>
-              <span className="text-xs text-malon-muted font-medium">horas / sem</span>
+            <div className="flex items-baseline justify-center space-x-0.5">
+              <span className="text-xl font-black text-white font-mono">{weeklyHours}</span>
+              <span className="text-[10px] text-malon-muted font-medium">hs</span>
             </div>
+            <span className="text-[9px] text-malon-muted/80 block mt-0.5">base fija</span>
           </div>
 
-          <div className="bg-malon-bg/60 rounded-xl p-3 border border-malon-surface/50">
-            <div className="flex items-center space-x-1.5 text-malon-muted text-xs mb-1">
-              <Calendar className="w-3.5 h-3.5 text-malon-red" />
-              <span>Guardia {MONTH_NAMES[today.getMonth()]}</span>
+          <div className="bg-malon-bg/60 rounded-xl p-2.5 border border-malon-sand/40 text-center shadow-sm">
+            <div className="flex items-center justify-center space-x-1 text-malon-sand text-[10px] mb-1 font-bold">
+              <Hourglass className="w-3 h-3 text-malon-sand" />
+              <span>Mes {MONTH_NAMES[today.getMonth()].slice(0, 3)}</span>
+            </div>
+            <div className="flex items-baseline justify-center space-x-0.5">
+              <span className="text-xl font-black text-malon-sand font-mono">{coachMonthly.totalMonthlyHours}</span>
+              <span className="text-[10px] text-malon-sand font-bold">hs</span>
+            </div>
+            <span className="text-[9px] text-malon-muted/80 block mt-0.5">
+              {coachMonthly.saturdayMonthlyHours > 0 ? `+${coachMonthly.saturdayMonthlyHours}h sáb` : 'sala'}
+            </span>
+          </div>
+
+          <div className="bg-malon-bg/60 rounded-xl p-2.5 border border-malon-surface/50 text-center">
+            <div className="flex items-center justify-center space-x-1 text-malon-muted text-[10px] mb-1">
+              <Calendar className="w-3 h-3 text-malon-red" />
+              <span>Guardia</span>
             </div>
             {nextGuard ? (
               <div>
-                <p className="text-xs font-bold text-white truncate">
+                <p className="text-[11px] font-bold text-white truncate">
                   {nextGuard.date.split('-').slice(1).reverse().join('/')}
                 </p>
-                <span className="text-[10px] text-malon-sand font-medium">
+                <span className="text-[9px] text-malon-sand font-mono">
                   11:00 a 14:00 hs
                 </span>
               </div>
             ) : (
-              <span className="text-xs text-malon-muted">Sin guardia este mes</span>
+              <span className="text-[10px] text-malon-muted">Sin guardia</span>
             )}
           </div>
         </div>
+
+        {/* Acceso rápido a auditoría si está desbloqueado el modo jefe */}
+        {isAdminUnlocked && (
+          <div className="mt-2.5 pt-2 border-t border-malon-surface/50 flex items-center justify-between">
+            <span className="text-[10px] text-malon-sand font-bold uppercase tracking-wider">
+              Modo Jefe Activo
+            </span>
+            <button
+              onClick={() => setIsAuditModalOpen(true)}
+              className="bg-malon-surface/90 hover:bg-malon-surface border border-malon-sand/40 text-malon-sand hover:text-white px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center space-x-1"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>Auditoría de todo el Staff</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Selector de días de la semana */}
@@ -220,7 +270,7 @@ export const MiGrilla: React.FC = () => {
                   </div>
 
                   <span className="text-sm font-black font-mono text-white">
-                    {shift.start_time} - {shift.end_time}
+                    {shift.start_time} - {shift.end_time} hs
                   </span>
                 </div>
 
