@@ -1,9 +1,21 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { Shield, ShieldAlert, ChevronDown } from 'lucide-react';
+import { Shield, ShieldAlert, ChevronDown, Bell } from 'lucide-react';
 
 export const Header: React.FC = () => {
-  const { currentCoach, isAdminUnlocked, setIsPinModalOpen, setIsCoachPickerOpen, lockAdmin } = useApp();
+  const {
+    currentCoach,
+    isAdminUnlocked,
+    setIsPinModalOpen,
+    setIsCoachPickerOpen,
+    lockAdmin,
+    notifications,
+    setIsNotificationsModalOpen,
+  } = useApp();
+
+  const unreadCount = notifications.filter(
+    n => (!n.target_coach_id || n.target_coach_id === currentCoach.id) && !n.read
+  ).length;
 
   return (
     <header className="sticky top-0 z-30 bg-malon-bg/95 backdrop-blur-md border-b border-malon-surface px-4 py-3">
@@ -25,6 +37,21 @@ export const Header: React.FC = () => {
 
         {/* Action Controls */}
         <div className="flex items-center space-x-2">
+          {/* Botón de Notificaciones con badge */}
+          <button
+            id="notifications-bell-btn"
+            onClick={() => setIsNotificationsModalOpen(true)}
+            className="relative p-2 rounded-full bg-malon-card hover:bg-malon-surface border border-malon-surface text-malon-white transition-all shadow-sm"
+            title="Avisos y notificaciones"
+          >
+            <Bell className="w-4 h-4 text-malon-sand hover:text-white transition-colors" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-malon-red text-[10px] font-bold text-white shadow-sm shadow-malon-red/50 animate-bounce">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+
           {/* Coach identity switcher */}
           <button
             onClick={() => setIsCoachPickerOpen(true)}

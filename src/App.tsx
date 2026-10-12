@@ -12,6 +12,7 @@ import { EditShiftModal } from './components/modals/EditShiftModal';
 import { EditGuardModal } from './components/modals/EditGuardModal';
 import { MonthlyAuditModal } from './components/modals/MonthlyAuditModal';
 import { ManageHolidayModal } from './components/modals/ManageHolidayModal';
+import { NotificationsModal } from './components/modals/NotificationsModal';
 import { InstallPrompt } from './components/InstallPrompt';
 
 const AppContent: React.FC = () => {
@@ -43,6 +44,7 @@ const AppContent: React.FC = () => {
       <EditGuardModal />
       <MonthlyAuditModal />
       <ManageHolidayModal />
+      <NotificationsModal />
     </div>
   );
 };

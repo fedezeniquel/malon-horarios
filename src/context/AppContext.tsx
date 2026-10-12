@@ -1,7 +1,27 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import type { StaffMember, Shift, SaturdayGuard, ShiftChangeRequest, ShiftChangeType, Franja, HolidaySchedule } from '../types';
-import { INITIAL_STAFF, INITIAL_SHIFTS, INITIAL_SATURDAY_GUARDS, INITIAL_SHIFT_CHANGES, INITIAL_HOLIDAYS } from '../lib/initialData';
+import type {
+  StaffMember,
+  Shift,
+  SaturdayGuard,
+  ShiftChangeRequest,
+  ShiftChangeType,
+  Franja,
+  HolidaySchedule,
+  ShiftBlockData,
+  AppNotification,
+  NotificationType,
+} from '../types';
+import {
+  INITIAL_STAFF,
+  INITIAL_SHIFTS,
+  INITIAL_SATURDAY_GUARDS,
+  INITIAL_SHIFT_CHANGES,
+  INITIAL_HOLIDAYS,
+  INITIAL_NOTIFICATIONS,
+} from '../lib/initialData';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { calculateDurationHours } from '../lib/hoursAudit';
+import { sendBrowserNotification } from '../lib/notifications';
 
 interface AppContextType {
   currentCoach: StaffMember;
@@ -28,6 +48,10 @@ interface AppContextType {
   updateShift: (updatedShift: Shift) => void;
   addShift: (newShift: Omit<Shift, 'id'>) => void;
   deleteShift: (shiftId: string) => void;
+  editingBlock: ShiftBlockData | null;
+  setEditingBlock: (block: ShiftBlockData | null) => void;
+  saveShiftBlock: (data: ShiftBlockData) => void;
+  deleteShiftBlock: (shiftIds: string[]) => void;
   addSaturdayGuard: (newGuard: Omit<SaturdayGuard, 'id'>) => void;
   updateSaturdayGuard: (guard: SaturdayGuard) => void;
   deleteSaturdayGuard: (guardId: string) => void;
@@ -57,6 +81,19 @@ interface AppContextType {
   setIsHolidayModalOpen: (open: boolean) => void;
   editingHoliday: HolidaySchedule | null;
   setEditingHoliday: (holiday: HolidaySchedule | null) => void;
+  notifications: AppNotification[];
+  isNotificationsModalOpen: boolean;
+  setIsNotificationsModalOpen: (open: boolean) => void;
+  addNotification: (data: {
+    type: NotificationType;
+    title: string;
+    message: string;
+    target_coach_id?: string;
+    link_tab?: 'mi-grilla' | 'general' | 'cambios';
+  }) => void;
+  markNotificationAsRead: (id: string) => void;
+  markAllNotificationsAsRead: () => void;
+  clearNotifications: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -80,6 +117,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Estados para modales de edición administrativa
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
+  const [editingBlock, setEditingBlock] = useState<ShiftBlockData | null>(null);
   const [isShiftModalOpen, setIsShiftModalOpen] = useState<boolean>(false);
   const [editingGuard, setEditingGuard] = useState<SaturdayGuard | null>(null);
   const [isGuardModalOpen, setIsGuardModalOpen] = useState<boolean>(false);
@@ -128,6 +166,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [editingHoliday, setEditingHoliday] = useState<HolidaySchedule | null>(null);
   const [isHolidayModalOpen, setIsHolidayModalOpen] = useState<boolean>(false);
 
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
+    const local = localStorage.getItem('malon_notifications');
+    return local ? JSON.parse(local) : INITIAL_NOTIFICATIONS;
+  });
+  const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState<boolean>(false);
+
   useEffect(() => {
     localStorage.setItem('malon_shifts', JSON.stringify(shifts));
   }, [shifts]);
@@ -143,6 +187,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('malon_holidays', JSON.stringify(holidays));
   }, [holidays]);
+
+  useEffect(() => {
+    localStorage.setItem('malon_notifications', JSON.stringify(notifications));
+  }, [notifications]);
 
   useEffect(() => {
     const client = supabase;
@@ -189,6 +237,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsAdminUnlocked(false);
   };
 
+  const addNotification = (data: {
+    type: NotificationType;
+    title: string;
+    message: string;
+    target_coach_id?: string;
+    link_tab?: 'mi-grilla' | 'general' | 'cambios';
+  }) => {
+    const newNotif: AppNotification = {
+      id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      created_at: new Date().toISOString(),
+      read: false,
+      ...data,
+    };
+    setNotifications(prev => [newNotif, ...prev]);
+
+    // Disparar Web Push si está permitido y aplica a este coach
+    if (!data.target_coach_id || data.target_coach_id === currentCoach.id) {
+      sendBrowserNotification(data.title, {
+        body: data.message,
+        tag: newNotif.id,
+      });
+    }
+  };
+
+  const markNotificationAsRead = (id: string) => {
+    setNotifications(prev =>
+      prev.map(n => (n.id === id ? { ...n, read: true } : n))
+    );
+  };
+
+  const markAllNotificationsAsRead = () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  };
+
+  const clearNotifications = () => {
+    setNotifications([]);
+  };
+
   const createShiftChange = (data: {
     target_date: string;
     day_name: string;
@@ -208,9 +294,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setShiftChanges(prev => [newRequest, ...prev]);
+
+    // Aviso 1: Notificar cuando alguien pide un cambio
+    addNotification({
+      type: 'shift_change_request',
+      title: '🔄 Nuevo Pedido de Cambio',
+      message: `${currentCoach.name} necesita reemplazo para el ${data.day_name} (${data.start_time} a ${data.end_time} hs). Motivo: ${data.reason || 'Sin especificar'}.`,
+      link_tab: 'cambios',
+    });
   };
 
   const claimShiftChange = (requestId: string) => {
+    const targetChange = shiftChanges.find(item => item.id === requestId);
+
     setShiftChanges(prev =>
       prev.map(item => {
         if (item.id === requestId) {
@@ -225,6 +321,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return item;
       })
     );
+
+    // Aviso 1: Notificar cuando el cambio ya fue tomado
+    if (targetChange) {
+      addNotification({
+        type: 'shift_change_claimed',
+        title: '✅ ¡Cambio Tomado!',
+        message: `${currentCoach.name} tomó el turno del ${targetChange.target_date} (${targetChange.start_time} a ${targetChange.end_time} hs) solicitado por ${targetChange.requester_name}.`,
+        link_tab: 'cambios',
+      });
+    }
   };
 
   const confirmShiftChange = (requestId: string) => {
@@ -273,6 +379,55 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setShifts(prev => prev.filter(s => s.id !== shiftId));
   };
 
+  // Funciones de administración de bloques de cobertura
+  const saveShiftBlock = (data: ShiftBlockData) => {
+    const duration = calculateDurationHours(data.start_time, data.end_time) || 1;
+    const idsToRemove = new Set(data.existingShiftIds);
+
+    const newShifts: Shift[] = [];
+    const baseId1 = data.existingShiftIds[0] || `shift-${Date.now()}`;
+    newShifts.push({
+      id: baseId1,
+      day_of_week: data.day_of_week,
+      franja: data.franja,
+      start_time: data.start_time,
+      end_time: data.end_time,
+      duration_hours: duration,
+      coach_id: data.coach_id_1,
+      coach_name: data.coach_name_1,
+      is_double_coverage: data.is_double_coverage,
+      partner_name: data.is_double_coverage ? data.coach_name_2 : undefined,
+      notes: data.notes,
+    });
+
+    if (data.is_double_coverage && data.coach_id_2 && data.coach_name_2) {
+      const baseId2 = data.existingShiftIds[1] || `shift-${Date.now() + 1}`;
+      newShifts.push({
+        id: baseId2,
+        day_of_week: data.day_of_week,
+        franja: data.franja,
+        start_time: data.start_time,
+        end_time: data.end_time,
+        duration_hours: duration,
+        coach_id: data.coach_id_2,
+        coach_name: data.coach_name_2,
+        is_double_coverage: true,
+        partner_name: data.coach_name_1,
+        notes: data.notes,
+      });
+    }
+
+    setShifts(prev => {
+      const remaining = prev.filter(s => !idsToRemove.has(s.id));
+      return [...remaining, ...newShifts];
+    });
+  };
+
+  const deleteShiftBlock = (shiftIds: string[]) => {
+    const idsToRemove = new Set(shiftIds);
+    setShifts(prev => prev.filter(s => !idsToRemove.has(s.id)));
+  };
+
   // Funciones de administración de guardias de los sábados
   const addSaturdayGuard = (newGuardData: Omit<SaturdayGuard, 'id'>) => {
     const newGuard: SaturdayGuard = {
@@ -299,17 +454,97 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `hol-${Date.now()}`,
     };
     setHolidays(prev => [...prev, newHoliday].sort((a, b) => a.date.localeCompare(b.date)));
+
+    // Aviso 3: Notificación de asignación de turno de feriado
+    if (!newHoliday.is_closed && (newHoliday.coach_name_1 || newHoliday.coach_name_2)) {
+      const coaches = [newHoliday.coach_name_1, newHoliday.coach_name_2].filter(Boolean).join(' y ');
+      addNotification({
+        type: 'holiday_assignment',
+        title: '📅 Asignación de Turno de Feriado',
+        message: `Feriado "${newHoliday.name}" (${newHoliday.date}): se asignó turno especial de doble cobertura (${newHoliday.time_display}) a ${coaches}.`,
+        link_tab: 'general',
+      });
+    }
   };
 
   const updateHoliday = (holiday: HolidaySchedule) => {
     setHolidays(prev =>
       prev.map(h => (h.id === holiday.id ? holiday : h)).sort((a, b) => a.date.localeCompare(b.date))
     );
+
+    // Aviso 3: Notificación de actualización / reasignación de turno de feriado
+    if (!holiday.is_closed && (holiday.coach_name_1 || holiday.coach_name_2)) {
+      const coaches = [holiday.coach_name_1, holiday.coach_name_2].filter(Boolean).join(' y ');
+      addNotification({
+        type: 'holiday_assignment',
+        title: '📅 Turno de Feriado Modificado',
+        message: `Feriado "${holiday.name}" (${holiday.date}): asignados en doble cobertura (${holiday.time_display}) ${coaches}.`,
+        link_tab: 'general',
+      });
+    }
   };
 
   const deleteHoliday = (holidayId: string) => {
     setHolidays(prev => prev.filter(h => h.id !== holidayId));
   };
+
+  // Verificación periódica de recordatorios necesarios (Sábado asignado y Feriado próximo)
+  useEffect(() => {
+    if (!currentCoach) return;
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+
+    // 1. Recordatorio para el coach cuando le toca su sábado asignado (próximos 6 días)
+    saturdayGuards.forEach(guard => {
+      if (guard.status === 'scheduled' && guard.coach_id === currentCoach.id) {
+        const guardDate = new Date(guard.date + 'T00:00:00');
+        const todayDate = new Date(todayStr + 'T00:00:00');
+        const diffDays = Math.round((guardDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (diffDays >= 0 && diffDays <= 6) {
+          const reminderKey = `malon_notif_guard_${guard.date}_${currentCoach.id}`;
+          if (!localStorage.getItem(reminderKey)) {
+            localStorage.setItem(reminderKey, 'sent');
+            const whenText = diffDays === 0 ? '¡Hoy te toca!' : diffDays === 1 ? '¡Mañana te toca!' : `Este sábado ${guard.date}`;
+            addNotification({
+              type: 'saturday_guard_reminder',
+              title: '⭐ Recordatorio: Tu Sábado Asignado',
+              message: `${whenText}: Tenés la guardia de sábado de 11:00 a 14:00 hs asignada. ¡Prepará tu turno!`,
+              target_coach_id: currentCoach.id,
+              link_tab: 'mi-grilla',
+            });
+          }
+        }
+      }
+    });
+
+    // 2. Recordatorio cuando se acerca el turno de feriado (próximos 3 días)
+    holidays.forEach(holiday => {
+      if (!holiday.is_closed) {
+        const isMyHoliday = holiday.coach_id_1 === currentCoach.id || holiday.coach_id_2 === currentCoach.id;
+        if (isMyHoliday) {
+          const holDate = new Date(holiday.date + 'T00:00:00');
+          const todayDate = new Date(todayStr + 'T00:00:00');
+          const diffDays = Math.round((holDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
+
+          if (diffDays >= 0 && diffDays <= 3) {
+            const reminderKey = `malon_notif_hol_reminder_${holiday.date}_${currentCoach.id}`;
+            if (!localStorage.getItem(reminderKey)) {
+              localStorage.setItem(reminderKey, 'sent');
+              const whenText = diffDays === 0 ? '¡Hoy feriado!' : diffDays === 1 ? '¡Mañana feriado!' : `En ${diffDays} días`;
+              addNotification({
+                type: 'holiday_reminder',
+                title: '🎉 Recordatorio: Turno de Feriado Cercano',
+                message: `${whenText} (${holiday.name} - ${holiday.date}): Tenés turno asignado (${holiday.time_display}) en doble cobertura.`,
+                target_coach_id: currentCoach.id,
+                link_tab: 'mi-grilla',
+              });
+            }
+          }
+        }
+      }
+    });
+  }, [currentCoach, saturdayGuards, holidays]);
 
   return (
     <AppContext.Provider
@@ -330,6 +565,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateShift,
         addShift,
         deleteShift,
+        editingBlock,
+        setEditingBlock,
+        saveShiftBlock,
+        deleteShiftBlock,
         addSaturdayGuard,
         updateSaturdayGuard,
         deleteSaturdayGuard,
@@ -359,6 +598,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsHolidayModalOpen,
         editingHoliday,
         setEditingHoliday,
+        notifications,
+        isNotificationsModalOpen,
+        setIsNotificationsModalOpen,
+        addNotification,
+        markNotificationAsRead,
+        markAllNotificationsAsRead,
+        clearNotifications,
       }}
     >
       {children}

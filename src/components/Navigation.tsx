@@ -13,6 +13,7 @@ export const Navigation: React.FC = () => {
       <div className="max-w-md mx-auto grid grid-cols-3 px-2 py-1.5">
         {/* Tab 1: Mi Grilla */}
         <button
+          id="nav-tab-mi-grilla"
           onClick={() => setActiveTab('mi-grilla')}
           className={`flex flex-col items-center justify-center py-1.5 rounded-xl transition-all ${
             activeTab === 'mi-grilla'
@@ -28,6 +29,7 @@ export const Navigation: React.FC = () => {
 
         {/* Tab 2: General */}
         <button
+          id="nav-tab-general"
           onClick={() => setActiveTab('general')}
           className={`flex flex-col items-center justify-center py-1.5 rounded-xl transition-all ${
             activeTab === 'general'
@@ -41,6 +43,7 @@ export const Navigation: React.FC = () => {
 
         {/* Tab 3: Cambios */}
         <button
+          id="nav-tab-cambios"
           onClick={() => setActiveTab('cambios')}
           className={`flex flex-col items-center justify-center py-1.5 rounded-xl transition-all relative ${
             activeTab === 'cambios'

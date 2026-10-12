@@ -71,3 +71,37 @@ export interface HolidaySchedule {
   coach_name_2: string;
   notes?: string;
 }
+
+export interface ShiftBlockData {
+  existingShiftIds: string[];
+  day_of_week: number;
+  franja: Franja;
+  start_time: string;
+  end_time: string;
+  is_double_coverage: boolean;
+  coach_id_1: string;
+  coach_name_1: string;
+  coach_id_2?: string;
+  coach_name_2?: string;
+  notes?: string;
+}
+
+export type NotificationType =
+  | 'shift_change_request'
+  | 'shift_change_claimed'
+  | 'saturday_guard_reminder'
+  | 'holiday_assignment'
+  | 'holiday_reminder';
+
+export interface AppNotification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  created_at: string; // ISO string
+  read: boolean;
+  target_coach_id?: string; // Si es null/undefined, es visible para todo el staff
+  link_tab?: 'mi-grilla' | 'general' | 'cambios';
+}
+
+

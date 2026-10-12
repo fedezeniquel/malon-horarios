@@ -7,6 +7,7 @@ import {
   Shield,
   ShieldCheck,
   Users,
+  User,
   Clock,
   CalendarDays,
   Edit2,
@@ -41,8 +42,8 @@ export const General: React.FC = () => {
     isAdminUnlocked,
     setIsPinModalOpen,
     setIsAuditModalOpen,
-    setEditingShift,
     setIsShiftModalOpen,
+    setEditingBlock,
     setEditingGuard,
     setIsGuardModalOpen,
     deleteSaturdayGuard,
@@ -147,12 +148,42 @@ export const General: React.FC = () => {
   };
 
   const handleCreateShift = () => {
-    setEditingShift(null);
+    setEditingBlock({
+      existingShiftIds: [],
+      day_of_week: selectedDay >= 1 && selectedDay <= 5 ? selectedDay : 1,
+      franja: 'manana',
+      start_time: '07:00',
+      end_time: '09:00',
+      is_double_coverage: false,
+      coach_id_1: currentCoach.id,
+      coach_name_1: currentCoach.name,
+    });
     setIsShiftModalOpen(true);
   };
 
-  const handleEditShift = (shift: Shift) => {
-    setEditingShift(shift);
+  const handleEditBlock = (block: {
+    isDouble: boolean;
+    coaches: string[];
+    startTime: string;
+    endTime: string;
+    notes?: string;
+    items: Shift[];
+  }) => {
+    const shift1 = block.items[0];
+    const shift2 = block.items[1];
+    setEditingBlock({
+      existingShiftIds: block.items.map(s => s.id),
+      day_of_week: shift1.day_of_week,
+      franja: shift1.franja,
+      start_time: block.startTime,
+      end_time: block.endTime,
+      is_double_coverage: block.isDouble,
+      coach_id_1: shift1.coach_id,
+      coach_name_1: shift1.coach_name,
+      coach_id_2: shift2?.coach_id,
+      coach_name_2: shift2?.coach_name,
+      notes: block.notes || shift1.notes,
+    });
     setIsShiftModalOpen(true);
   };
 
@@ -194,6 +225,76 @@ export const General: React.FC = () => {
     return h.date >= todayStr;
   });
 
+  // Renderizador idéntico para bloques de cobertura simple y doble
+  const renderShiftCard = (
+    block: {
+      isDouble: boolean;
+      coaches: string[];
+      startTime: string;
+      endTime: string;
+      notes?: string;
+      items: Shift[];
+    },
+    i: number
+  ) => (
+    <div
+      key={i}
+      className="p-3.5 rounded-2xl border transition-all bg-gradient-to-r from-malon-surface to-malon-surface/90 border-malon-sand/40 shadow-sm space-y-2.5"
+    >
+      <div className="flex items-center justify-between">
+        {/* HORARIO RESALTADO (TODOS LOS HORARIOS) */}
+        <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-malon-card border border-malon-sand/40 text-malon-sand font-mono font-bold text-xs shadow-sm">
+          <Clock className="w-3.5 h-3.5 text-malon-sand" />
+          <span>{block.startTime} - {block.endTime} hs</span>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          {block.isDouble ? (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30 flex items-center space-x-1">
+              <Users className="w-3 h-3" />
+              <span>DOBLE COBERTURA</span>
+            </span>
+          ) : (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30 flex items-center space-x-1">
+              <User className="w-3 h-3" />
+              <span>COBERTURA SIMPLE</span>
+            </span>
+          )}
+
+          {isAdminUnlocked && (
+            <button
+              onClick={() => handleEditBlock(block)}
+              className="p-1 rounded-md bg-malon-card hover:bg-malon-surface text-malon-sand hover:text-white border border-malon-surface transition-all"
+              title="Editar horario y asignación de coaches"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+        {block.coaches.map((cName, idx) => (
+          <div
+            key={idx}
+            className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-malon-card text-malon-sand border border-malon-sand/30 shadow-sm"
+          >
+            <div className="w-4 h-4 rounded-full bg-malon-sand/20 text-malon-sand flex items-center justify-center text-[9px] font-black">
+              {cName.slice(0, 2).toUpperCase()}
+            </div>
+            <span>{cName}</span>
+          </div>
+        ))}
+      </div>
+
+      {block.notes && (
+        <p className="text-[11px] text-malon-muted mt-1">
+          {block.notes}
+        </p>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-4 pb-20">
       {/* Banner de administración si está activo */}
@@ -219,7 +320,7 @@ export const General: React.FC = () => {
           <div className="flex items-center space-x-1.5 flex-wrap justify-end gap-y-1">
             <button
               onClick={() => setIsAuditModalOpen(true)}
-              className="bg-malon-surface/90 hover:bg-malon-surface border border-malon-sand/40 text-malon-sand hover:text-white px-2 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1 shadow"
+              className="bg-malon-surface/90 hover:bg-malon-surface border border-malon-sand/40 text-malon-sand hover:text-white px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1 shadow"
               title="Auditoría de Horas y Liquidación"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -228,7 +329,7 @@ export const General: React.FC = () => {
 
             <button
               onClick={handleCreateHoliday}
-              className="bg-malon-surface/90 hover:bg-malon-surface border border-malon-sand/40 text-malon-sand hover:text-white px-2 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1 shadow"
+              className="bg-malon-surface/90 hover:bg-malon-surface border border-malon-sand/40 text-malon-sand hover:text-white px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center space-x-1 shadow"
               title="Registrar Feriado / Jornada Especial"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -438,14 +539,14 @@ export const General: React.FC = () => {
                           onClick={() => handleEditHoliday(h)}
                           className="px-2.5 py-1 rounded-lg bg-malon-card hover:bg-malon-surface text-malon-sand hover:text-white border border-malon-surface transition-all text-xs font-semibold flex items-center space-x-1"
                         >
-                          <Edit2 className="w-3 h-3" />
+                          <Edit2 className="w-3.5 h-3.5" />
                           <span>Editar</span>
                         </button>
                         <button
                           onClick={() => handleDeleteHoliday(h)}
                           className="px-2.5 py-1 rounded-lg bg-malon-card hover:bg-red-500/20 text-malon-muted hover:text-red-400 border border-malon-surface transition-all text-xs font-semibold flex items-center space-x-1"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="w-3.5 h-3.5" />
                           <span>Eliminar</span>
                         </button>
                       </div>
@@ -603,7 +704,7 @@ export const General: React.FC = () => {
           </div>
         </div>
       ) : (
-        /* Franjas del día de semana: Mañana, Tarde, Noche - TODOS LOS HORARIOS RESALTADOS */
+        /* Franjas del día de semana: Mañana, Tarde, Noche - COBERTURA SIMPLE Y DOBLE CON LA MISMA UI */
         <div className="space-y-3">
           {/* 1. FRANJA MAÑANA (07:00 a 13:00) */}
           <div className="bg-malon-card border border-malon-surface rounded-2xl p-3.5 space-y-2.5">
@@ -620,71 +721,7 @@ export const General: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              {groupDoubleShifts(mananaShifts).map((block, i) => (
-                <div
-                  key={i}
-                  className={`p-3 rounded-xl border transition-all ${
-                    block.isDouble
-                      ? 'bg-gradient-to-r from-malon-surface to-malon-surface/90 border-malon-sand/40 shadow-sm'
-                      : 'bg-malon-surface/70 border-malon-surface/90 hover:border-malon-sand/30 shadow-sm'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    {/* HORARIO RESALTADO (TODOS LOS HORARIOS) */}
-                    <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-malon-card border border-malon-sand/40 text-malon-sand font-mono font-bold text-xs shadow-sm">
-                      <Clock className="w-3.5 h-3.5 text-malon-sand" />
-                      <span>{block.startTime} - {block.endTime} hs</span>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      {block.isDouble ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30 flex items-center space-x-1">
-                          <Users className="w-3 h-3" />
-                          <span>DOBLE COBERTURA</span>
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-malon-card/80 text-malon-muted border border-malon-surface">
-                          COBERTURA SIMPLE
-                        </span>
-                      )}
-
-                      {isAdminUnlocked && (
-                        <button
-                          onClick={() => handleEditShift(block.items[0])}
-                          className="p-1 rounded-md bg-malon-card hover:bg-malon-surface text-malon-sand hover:text-white border border-malon-surface transition-all"
-                          title="Editar este turno fijo"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                    {block.coaches.map((cName, idx) => (
-                      <div
-                        key={idx}
-                        className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${
-                          block.isDouble
-                            ? 'bg-malon-card text-malon-sand border border-malon-sand/30'
-                            : 'bg-malon-card text-white border border-malon-surface/60'
-                        }`}
-                      >
-                        <div className="w-4 h-4 rounded-full bg-malon-sand/20 text-malon-sand flex items-center justify-center text-[9px] font-black">
-                          {cName.slice(0, 2).toUpperCase()}
-                        </div>
-                        <span>{cName}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {block.notes && (
-                    <p className="text-[11px] text-malon-muted mt-2">
-                      {block.notes}
-                    </p>
-                  )}
-                </div>
-              ))}
+              {groupDoubleShifts(mananaShifts).map(renderShiftCard)}
             </div>
           </div>
 
@@ -703,65 +740,7 @@ export const General: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              {groupDoubleShifts(tardeShifts).map((block, i) => (
-                <div
-                  key={i}
-                  className={`p-3 rounded-xl border transition-all ${
-                    block.isDouble
-                      ? 'bg-gradient-to-r from-malon-surface to-malon-surface/90 border-malon-sand/40 shadow-sm'
-                      : 'bg-malon-surface/70 border-malon-surface/90 hover:border-malon-sand/30 shadow-sm'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    {/* HORARIO RESALTADO (TODOS LOS HORARIOS) */}
-                    <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-malon-card border border-malon-sand/40 text-malon-sand font-mono font-bold text-xs shadow-sm">
-                      <Clock className="w-3.5 h-3.5 text-malon-sand" />
-                      <span>{block.startTime} - {block.endTime} hs</span>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      {block.isDouble ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30 flex items-center space-x-1">
-                          <Users className="w-3 h-3" />
-                          <span>DOBLE COBERTURA</span>
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-malon-card/80 text-malon-muted border border-malon-surface">
-                          COBERTURA SIMPLE
-                        </span>
-                      )}
-
-                      {isAdminUnlocked && (
-                        <button
-                          onClick={() => handleEditShift(block.items[0])}
-                          className="p-1 rounded-md bg-malon-card hover:bg-malon-surface text-malon-sand hover:text-white border border-malon-surface transition-all"
-                          title="Editar este turno fijo"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    {block.coaches.map((cName, idx) => (
-                      <div
-                        key={idx}
-                        className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${
-                          block.isDouble
-                            ? 'bg-malon-card text-malon-sand border border-malon-sand/30'
-                            : 'bg-malon-card text-white border border-malon-surface/60'
-                        }`}
-                      >
-                        <div className="w-4 h-4 rounded-full bg-malon-sand/20 text-malon-sand flex items-center justify-center text-[9px] font-black">
-                          {cName.slice(0, 2).toUpperCase()}
-                        </div>
-                        <span>{cName}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+              {groupDoubleShifts(tardeShifts).map(renderShiftCard)}
             </div>
           </div>
 
@@ -780,61 +759,7 @@ export const General: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              {groupDoubleShifts(nocheShifts).map((block, i) => (
-                <div
-                  key={i}
-                  className={`p-3 rounded-xl border transition-all ${
-                    block.isDouble
-                      ? 'bg-gradient-to-r from-malon-surface to-malon-surface/90 border-malon-sand/40 shadow-sm'
-                      : 'bg-malon-surface/70 border-malon-surface/90 hover:border-malon-sand/30 shadow-sm'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    {/* HORARIO RESALTADO (TODOS LOS HORARIOS) */}
-                    <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-malon-card border border-malon-sand/40 text-malon-sand font-mono font-bold text-xs shadow-sm">
-                      <Clock className="w-3.5 h-3.5 text-malon-sand" />
-                      <span>{block.startTime} - {block.endTime} hs</span>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30 flex items-center space-x-1">
-                        <Users className="w-3 h-3" />
-                        <span>DOBLE COBERTURA</span>
-                      </span>
-
-                      {isAdminUnlocked && (
-                        <button
-                          onClick={() => handleEditShift(block.items[0])}
-                          className="p-1 rounded-md bg-malon-card hover:bg-malon-surface text-malon-sand hover:text-white border border-malon-surface transition-all"
-                          title="Editar este turno fijo"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                    {block.coaches.map((cName, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-malon-card text-malon-sand border border-malon-sand/30"
-                      >
-                        <div className="w-4 h-4 rounded-full bg-malon-sand/20 text-malon-sand flex items-center justify-center text-[9px] font-black">
-                          {cName.slice(0, 2).toUpperCase()}
-                        </div>
-                        <span>{cName}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {block.notes && (
-                    <p className="text-[11px] text-malon-muted mt-2">
-                      {block.notes}
-                    </p>
-                  )}
-                </div>
-              ))}
+              {groupDoubleShifts(nocheShifts).map(renderShiftCard)}
             </div>
           </div>
         </div>

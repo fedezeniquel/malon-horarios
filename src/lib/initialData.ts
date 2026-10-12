@@ -648,3 +648,26 @@ export const INITIAL_HOLIDAYS: HolidaySchedule[] = [
   },
 ];
 
+// Notificaciones iniciales de ejemplo para staff
+export const INITIAL_NOTIFICATIONS: import('../types').AppNotification[] = [
+  {
+    id: 'notif-1',
+    type: 'holiday_reminder',
+    title: '📅 Recordatorio de Feriado',
+    message: 'Día del Respeto a la Diversidad Cultural: doble cobertura en sala de 09:00 a 13:00 hs (Patri y Fede).',
+    created_at: new Date().toISOString(),
+    read: false,
+    link_tab: 'general',
+  },
+  {
+    id: 'notif-2',
+    type: 'saturday_guard_reminder',
+    title: '🛡️ Recordatorio de Guardia de Sábado',
+    message: 'Te toca cubrir la guardia rotativa de sala el próximo sábado de 11:00 a 14:00 hs.',
+    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+    read: false,
+    target_coach_id: 'fede',
+    link_tab: 'mi-grilla',
+  },
+];
+
