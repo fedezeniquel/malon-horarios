@@ -153,9 +153,15 @@ export const calculateMonthlyAudit = (
     const holidayMonthlyHours = myHolidaysThisMonth.reduce((acc, h) => acc + (h.total_hours || 0), 0);
     const holidayNames = myHolidaysThisMonth.map(h => `${h.name} (${h.date.split('-').slice(1).reverse().join('/')})`);
 
-    // 5. Cambios y reemplazos confirmados (+ si cubrió, - si pidió reemplazo)
+    // 5. Cambios y reemplazos confirmados
+    // Regla de compensación:
+    // - Si compensation_type === 'pay' (o sin especificar): se computan y transfieren horas (+ al que cubrió, - al solicitante).
+    // - Si compensation_type === 'work': NO se computan ni descuentan horas en el sistema (delta 0), ya que se devuelven el turno trabajando entre ellos.
     let shiftChangesDelta = 0;
     monthChanges.forEach(ch => {
+      if (ch.compensation_type === 'work') {
+        return; // Arreglo mano a mano devolviendo horas de trabajo: no altera la liquidación
+      }
       const duration = calculateDurationHours(ch.start_time, ch.end_time);
       if (ch.requester_id === coach.id) {
         shiftChangesDelta -= duration;

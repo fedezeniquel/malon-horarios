@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { PlusCircle, Clock, Calendar, CheckCircle, Handshake, Trash2 } from 'lucide-react';
-import type { ShiftChangeRequest } from '../../types';
+import { PlusCircle, Clock, Calendar, CheckCircle, Handshake, Trash2, ArrowRightLeft, DollarSign } from 'lucide-react';
+import type { ShiftChangeRequest, ShiftCompensationType } from '../../types';
+import { calculateDurationHours } from '../../lib/hoursAudit';
 
 export const Cambios: React.FC = () => {
   const { currentCoach, shiftChanges, claimShiftChange, confirmShiftChange, cancelShiftChange, setIsCreateChangeModalOpen } = useApp();
   
   const [filter, setFilter] = useState<'open' | 'mine' | 'history'>('open');
+  const [selectedCompensation, setSelectedCompensation] = useState<Record<string, ShiftCompensationType>>({});
 
   const filteredChanges = shiftChanges.filter(item => {
     if (filter === 'open') {
@@ -104,6 +106,8 @@ export const Cambios: React.FC = () => {
           filteredChanges.map(change => {
             const isMyRequest = change.requester_id === currentCoach.id;
             const isClaimedByMe = change.claimed_by_id === currentCoach.id;
+            const duration = calculateDurationHours(change.start_time, change.end_time);
+            const currentCompChoice = selectedCompensation[change.id] || 'work';
 
             return (
               <div
@@ -138,7 +142,7 @@ export const Cambios: React.FC = () => {
                     </span>
                     <span className="font-mono text-white flex items-center space-x-1">
                       <Clock className="w-3.5 h-3.5 text-malon-muted" />
-                      <span>{change.start_time} - {change.end_time} hs</span>
+                      <span>{change.start_time} - {change.end_time} hs ({duration}hs)</span>
                     </span>
                   </div>
 
@@ -187,7 +191,7 @@ export const Cambios: React.FC = () => {
 
                   {/* Estado Reclamado / En confirmación */}
                   {change.status === 'claimed' && (
-                    <div className="w-full space-y-2">
+                    <div className="w-full space-y-3">
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-malon-sand font-semibold flex items-center space-x-1">
                           <Handshake className="w-3.5 h-3.5" />
@@ -198,34 +202,106 @@ export const Cambios: React.FC = () => {
                         </span>
                       </div>
 
-                      {isMyRequest && (
-                        <button
-                          onClick={() => confirmShiftChange(change.id)}
-                          className="w-full bg-malon-red hover:bg-malon-red-hover text-white py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 shadow-md shadow-malon-red/20"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          <span>Confirmar Reemplazo (Confirmar Cambio)</span>
-                        </button>
-                      )}
+                      {isMyRequest ? (
+                        <div className="space-y-2 bg-malon-surface/50 border border-malon-surface rounded-xl p-3">
+                          <p className="text-[11px] font-bold text-white">
+                            ¿Cómo acordaron compensar estas {duration}hs?
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {/* Opción 1: Devolver con trabajo */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSelectedCompensation(prev => ({ ...prev, [change.id]: 'work' }))
+                              }
+                              className={`p-2.5 rounded-xl border text-left transition-all flex items-start gap-2 ${
+                                currentCompChoice === 'work'
+                                  ? 'bg-cyan-950/40 border-cyan-500 text-white shadow-sm'
+                                  : 'bg-malon-card border-malon-surface text-malon-muted hover:text-white'
+                              }`}
+                            >
+                              <ArrowRightLeft className={`w-4 h-4 shrink-0 mt-0.5 ${currentCompChoice === 'work' ? 'text-cyan-400' : 'text-malon-muted'}`} />
+                              <div>
+                                <p className="text-xs font-bold">Devolver con trabajo</p>
+                                <p className="text-[10px] text-malon-muted leading-tight mt-0.5">
+                                  Le devolverás las horas cubriendo un turno. No altera la liquidación (0hs delta).
+                                </p>
+                              </div>
+                            </button>
 
-                      {isClaimedByMe && (
-                        <p className="text-[11px] text-malon-muted text-center italic">
-                          Esperando que {change.requester_name} confirme el cambio
-                        </p>
+                            {/* Opción 2: Pagar las horas */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSelectedCompensation(prev => ({ ...prev, [change.id]: 'pay' }))
+                              }
+                              className={`p-2.5 rounded-xl border text-left transition-all flex items-start gap-2 ${
+                                currentCompChoice === 'pay'
+                                  ? 'bg-emerald-950/40 border-emerald-500 text-white shadow-sm'
+                                  : 'bg-malon-card border-malon-surface text-malon-muted hover:text-white'
+                              }`}
+                            >
+                              <DollarSign className={`w-4 h-4 shrink-0 mt-0.5 ${currentCompChoice === 'pay' ? 'text-emerald-400' : 'text-malon-muted'}`} />
+                              <div>
+                                <p className="text-xs font-bold">Pagar horas</p>
+                                <p className="text-[10px] text-malon-muted leading-tight mt-0.5">
+                                  Se computan en la liquidación mensual (+{duration}hs a {change.claimed_by_name}, -{duration}hs a vos).
+                                </p>
+                              </div>
+                            </button>
+                          </div>
+
+                          <button
+                            onClick={() => confirmShiftChange(change.id, currentCompChoice)}
+                            className="w-full mt-2 bg-malon-red hover:bg-malon-red-hover text-white py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center space-x-1.5 shadow-md shadow-malon-red/20"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            <span>
+                              Confirmar Cambio ({currentCompChoice === 'work' ? 'Devolver con trabajo' : 'Pagar horas'})
+                            </span>
+                          </button>
+                        </div>
+                      ) : (
+                        isClaimedByMe && (
+                          <div className="bg-malon-surface/40 border border-malon-surface rounded-xl p-2.5 text-center">
+                            <p className="text-xs text-malon-sand font-semibold">
+                              ¡Tomaste este turno!
+                            </p>
+                            <p className="text-[11px] text-malon-muted mt-0.5">
+                              Esperando que {change.requester_name} confirme el cambio y elija la modalidad (devolver con trabajo o pagar horas).
+                            </p>
+                          </div>
+                        )
                       )}
                     </div>
                   )}
 
                   {/* Estado Confirmado */}
                   {change.status === 'confirmed' && (
-                    <div className="flex items-center justify-between w-full text-xs">
-                      <div className="flex items-center space-x-1 text-emerald-400 font-semibold">
-                        <CheckCircle className="w-4 h-4" />
-                        <span>Confirmado: Cubre {change.claimed_by_name}</span>
+                    <div className="w-full space-y-2 pt-1 text-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-1 text-emerald-400 font-semibold">
+                          <CheckCircle className="w-4 h-4" />
+                          <span>Confirmado: Cubre {change.claimed_by_name}</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-malon-muted">
+                          Listo en sistema
+                        </span>
                       </div>
-                      <span className="text-[10px] font-mono text-malon-muted">
-                        Listo en sistema
-                      </span>
+
+                      {/* Modalidad de compensación acordada */}
+                      <div className="flex items-center justify-between p-2 rounded-xl bg-malon-surface/40 border border-malon-surface">
+                        <span className="text-[11px] text-malon-muted">Compensación:</span>
+                        {change.compensation_type === 'pay' ? (
+                          <span className="text-[11px] font-semibold text-emerald-300 flex items-center gap-1 bg-emerald-950/40 border border-emerald-800/50 px-2 py-0.5 rounded-lg">
+                            <span>💰</span> Pagar horas (+{duration}hs computadas)
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-semibold text-cyan-300 flex items-center gap-1 bg-cyan-950/40 border border-cyan-800/50 px-2 py-0.5 rounded-lg">
+                            <span>🤝</span> Devolver con trabajo (mano a mano)
+                          </span>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>

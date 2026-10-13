@@ -37,6 +37,7 @@ export interface SaturdayGuard {
 
 export type ShiftChangeType = 'single_hour' | 'multiple_hours' | 'full_shift';
 export type ShiftChangeStatus = 'open' | 'claimed' | 'confirmed' | 'cancelled';
+export type ShiftCompensationType = 'work' | 'pay'; // 'work': Devolver con horas de trabajo, 'pay': Pagar / Computar horas
 
 export interface ShiftChangeRequest {
   id: string;
@@ -55,6 +56,7 @@ export interface ShiftChangeRequest {
   claimed_by_name?: string;
   claimed_at?: string;
   confirmed_at?: string;
+  compensation_type?: ShiftCompensationType;
 }
 
 export interface HolidaySchedule {

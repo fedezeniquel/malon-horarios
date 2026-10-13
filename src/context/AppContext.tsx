@@ -5,6 +5,7 @@ import type {
   SaturdayGuard,
   ShiftChangeRequest,
   ShiftChangeType,
+  ShiftCompensationType,
   Franja,
   HolidaySchedule,
   ShiftBlockData,
@@ -43,7 +44,7 @@ interface AppContextType {
     reason: string;
   }) => void;
   claimShiftChange: (requestId: string) => void;
-  confirmShiftChange: (requestId: string) => void;
+  confirmShiftChange: (requestId: string, compensationType?: ShiftCompensationType) => void;
   cancelShiftChange: (requestId: string) => void;
   updateShift: (updatedShift: Shift) => void;
   addShift: (newShift: Omit<Shift, 'id'>) => void;
@@ -333,7 +334,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const confirmShiftChange = (requestId: string) => {
+  const confirmShiftChange = (requestId: string, compensationType: ShiftCompensationType = 'work') => {
+    const targetChange = shiftChanges.find(item => item.id === requestId);
+
     setShiftChanges(prev =>
       prev.map(item => {
         if (item.id === requestId) {
@@ -341,11 +344,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...item,
             status: 'confirmed',
             confirmed_at: new Date().toISOString(),
+            compensation_type: compensationType,
           };
         }
         return item;
       })
     );
+
+    // Notificar al coach que tomó el reemplazo sobre la confirmación y la modalidad acordada
+    if (targetChange && targetChange.claimed_by_id) {
+      const modeText =
+        compensationType === 'work'
+          ? 'Modalidad acordada: Devolver con horas de trabajo (mano a mano).'
+          : 'Modalidad acordada: Pagar horas (se transfieren y computan en tu liquidación mensual).';
+
+      addNotification({
+        type: 'shift_change_claimed',
+        title: '🤝 ¡Cambio Confirmado!',
+        message: `${targetChange.requester_name} confirmó el cambio del ${targetChange.target_date} (${targetChange.start_time} a ${targetChange.end_time} hs). ${modeText}`,
+        target_coach_id: targetChange.claimed_by_id,
+        link_tab: 'cambios',
+      });
+    }
   };
 
   const cancelShiftChange = (requestId: string) => {
