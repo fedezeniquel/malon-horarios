@@ -14,9 +14,14 @@ import { MonthlyAuditModal } from './components/modals/MonthlyAuditModal';
 import { ManageHolidayModal } from './components/modals/ManageHolidayModal';
 import { NotificationsModal } from './components/modals/NotificationsModal';
 import { InstallPrompt } from './components/InstallPrompt';
+import { WelcomeProfileSetup } from './components/screens/WelcomeProfileSetup';
 
 const AppContent: React.FC = () => {
-  const { activeTab } = useApp();
+  const { activeTab, hasSelectedProfile } = useApp();
+
+  if (!hasSelectedProfile) {
+    return <WelcomeProfileSetup />;
+  }
 
   return (
     <div className="min-h-screen bg-malon-bg text-malon-white flex flex-col font-sans">

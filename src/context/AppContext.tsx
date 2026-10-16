@@ -27,6 +27,10 @@ import { sendBrowserNotification } from '../lib/notifications';
 interface AppContextType {
   currentCoach: StaffMember;
   setCurrentCoach: (coach: StaffMember) => void;
+  hasSelectedProfile: boolean;
+  setHasSelectedProfile: (hasSelected: boolean) => void;
+  loginCoach: (coach: StaffMember, rememberDevice?: boolean) => void;
+  logoutCoach: () => void;
   staff: StaffMember[];
   shifts: Shift[];
   saturdayGuards: SaturdayGuard[];
@@ -104,6 +108,11 @@ const MASTER_PIN = import.meta.env.VITE_ADMIN_MASTER_PIN || '1234';
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [staff] = useState<StaffMember[]>(INITIAL_STAFF);
   
+  const [hasSelectedProfile, setHasSelectedProfile] = useState<boolean>(() => {
+    const savedId = localStorage.getItem('malon_current_coach_id');
+    return Boolean(savedId && INITIAL_STAFF.some(s => s.id === savedId));
+  });
+
   const [currentCoach, setCurrentCoachState] = useState<StaffMember>(() => {
     const savedId = localStorage.getItem('malon_current_coach_id');
     const found = INITIAL_STAFF.find(s => s.id === savedId);
@@ -213,9 +222,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
+  const loginCoach = (coach: StaffMember, rememberDevice: boolean = true) => {
+    setCurrentCoachState(coach);
+    if (rememberDevice) {
+      localStorage.setItem('malon_current_coach_id', coach.id);
+      localStorage.setItem('malon_remember_device', 'true');
+    } else {
+      localStorage.removeItem('malon_current_coach_id');
+      localStorage.setItem('malon_remember_device', 'false');
+    }
+    if (coach.role !== 'admin' && coach.role !== 'coach_admin') {
+      setIsAdminUnlocked(false);
+    }
+    setHasSelectedProfile(true);
+  };
+
+  const logoutCoach = () => {
+    localStorage.removeItem('malon_current_coach_id');
+    localStorage.removeItem('malon_remember_device');
+    setIsAdminUnlocked(false);
+    setHasSelectedProfile(false);
+    setIsCoachPickerOpen(false);
+  };
+
   const setCurrentCoach = (coach: StaffMember) => {
     setCurrentCoachState(coach);
-    localStorage.setItem('malon_current_coach_id', coach.id);
+    const remember = localStorage.getItem('malon_remember_device');
+    if (remember !== 'false') {
+      localStorage.setItem('malon_current_coach_id', coach.id);
+    }
     // Si el nuevo perfil seleccionado no es admin ni coach_admin, bloquear modo jefe
     if (coach.role !== 'admin' && coach.role !== 'coach_admin') {
       setIsAdminUnlocked(false);
@@ -611,6 +646,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         currentCoach,
         setCurrentCoach,
+        hasSelectedProfile,
+        setHasSelectedProfile,
+        loginCoach,
+        logoutCoach,
         staff,
         shifts,
         saturdayGuards,

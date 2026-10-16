@@ -1,10 +1,10 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { X, Check, ShieldCheck } from 'lucide-react';
+import { X, Check, ShieldCheck, LogOut } from 'lucide-react';
 import type { StaffMember } from '../../types';
 
 export const CoachPickerModal: React.FC = () => {
-  const { staff, currentCoach, setCurrentCoach, isCoachPickerOpen, setIsCoachPickerOpen } = useApp();
+  const { staff, currentCoach, setCurrentCoach, isCoachPickerOpen, setIsCoachPickerOpen, logoutCoach } = useApp();
 
   if (!isCoachPickerOpen) return null;
 
@@ -92,9 +92,18 @@ export const CoachPickerModal: React.FC = () => {
           })}
         </div>
 
-        <div className="p-3 border-t border-malon-surface bg-malon-bg/40 text-center">
-          <p className="text-[11px] text-malon-muted">
-            Queda guardado en tu teléfono. Podés cambiarlo cuando quieras.
+        {/* Footer con opción de desvincular */}
+        <div className="p-3 border-t border-malon-surface bg-malon-bg/60 space-y-2">
+          <button
+            type="button"
+            onClick={logoutCoach}
+            className="w-full flex items-center justify-center space-x-2 py-2 px-3 rounded-xl border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold transition-all"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Desvincular perfil de este teléfono</span>
+          </button>
+          <p className="text-[10px] text-center text-malon-muted">
+            Al desvincular, la app pedirá seleccionar el perfil al volver a abrir.
           </p>
         </div>
       </div>
