@@ -8,7 +8,7 @@ export interface StaffMember {
   phone?: string;
 }
 
-export type Franja = 'manana' | 'tarde' | 'noche' | 'sabado';
+export type Franja = 'manana' | 'siesta' | 'tarde' | 'noche' | 'sabado';
 
 export interface Shift {
   id: string;
@@ -59,6 +59,19 @@ export interface ShiftChangeRequest {
   compensation_type?: ShiftCompensationType;
 }
 
+export interface HolidaySlot {
+  id: string;
+  start_time: string; // ej: "08:00"
+  end_time: string;   // ej: "09:00"
+  duration_hours: number; // ej: 1
+  hours: string[];    // ej: ["08:00"]
+  time_display: string; // ej: "08:00 a 09:00 hs"
+  coach_id_1: string;
+  coach_name_1: string;
+  coach_id_2: string;
+  coach_name_2: string;
+}
+
 export interface HolidaySchedule {
   id: string;
   date: string; // YYYY-MM-DD
@@ -67,10 +80,11 @@ export interface HolidaySchedule {
   selected_hours: string[]; // Horas en punto tildadas (ej: ["09:00", "10:00", "11:00", "12:00"])
   time_display: string; // Resumen legible (ej: "09:00 a 13:00 hs")
   total_hours: number; // Cantidad total de horas trabajadas
-  coach_id_1: string;
+  coach_id_1: string; // Dupla principal o primer slot (compatibilidad)
   coach_name_1: string;
   coach_id_2: string;
   coach_name_2: string;
+  slots?: HolidaySlot[]; // Desglose por turnos/bloques con duplas específicas
   notes?: string;
 }
 

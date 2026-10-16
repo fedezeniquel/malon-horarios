@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   X,
@@ -10,6 +10,8 @@ import {
   Trash2,
   Save,
 } from 'lucide-react';
+import type { HolidaySlot } from '../../types';
+import { groupHoursIntoRanges, formatSelectedHoursDisplay } from '../../lib/hoursAudit';
 
 // Intervalos de horas operativas de Malón (1 hora cada uno, de 07:00 a 21:00)
 const HOURLY_SLOTS = [
@@ -29,36 +31,6 @@ const HOURLY_SLOTS = [
   { id: '20:00', label: '20:00 a 21:00', hour: 20 },
 ];
 
-/**
- * Convierte un array de horas seleccionadas (ej: ['09:00', '10:00', '11:00', '12:00'])
- * en un resumen legible de texto continuo (ej: "09:00 a 13:00 hs")
- */
-export const formatSelectedHoursDisplay = (selected: string[]): string => {
-  if (selected.length === 0) return 'Sin horarios seleccionados';
-
-  const sortedHours = [...selected].sort().map(s => parseInt(s.split(':')[0], 10));
-  const ranges: { start: number; end: number }[] = [];
-
-  let rangeStart = sortedHours[0];
-  let prevHour = sortedHours[0];
-
-  for (let i = 1; i < sortedHours.length; i++) {
-    const curHour = sortedHours[i];
-    if (curHour === prevHour + 1) {
-      prevHour = curHour;
-    } else {
-      ranges.push({ start: rangeStart, end: prevHour + 1 });
-      rangeStart = curHour;
-      prevHour = curHour;
-    }
-  }
-  ranges.push({ start: rangeStart, end: prevHour + 1 });
-
-  return ranges
-    .map(r => `${String(r.start).padStart(2, '0')}:00 a ${String(r.end).padStart(2, '0')}:00`)
-    .join(' y ') + ' hs';
-};
-
 export const ManageHolidayModal: React.FC = () => {
   const {
     isHolidayModalOpen,
@@ -75,57 +47,137 @@ export const ManageHolidayModal: React.FC = () => {
   const [name, setName] = useState<string>('');
   const [isClosed, setIsClosed] = useState<boolean>(false);
   const [selectedHours, setSelectedHours] = useState<string[]>(['09:00', '10:00', '11:00', '12:00']);
-  const [coachId1, setCoachId1] = useState<string>('');
-  const [coachId2, setCoachId2] = useState<string>('');
+  const [slotCoaches, setSlotCoaches] = useState<Record<string, { coachId1: string; coachId2: string }>>({});
   const [notes, setNotes] = useState<string>('');
   const [error, setError] = useState<string>('');
+
+  // Rangos continuos calculados a partir de las horas tildadas
+  const activeRanges = useMemo(() => {
+    return groupHoursIntoRanges(selectedHours);
+  }, [selectedHours]);
 
   useEffect(() => {
     if (editingHoliday) {
       setDate(editingHoliday.date);
       setName(editingHoliday.name);
       setIsClosed(editingHoliday.is_closed);
-      setSelectedHours(editingHoliday.selected_hours || []);
-      setCoachId1(editingHoliday.coach_id_1 || '');
-      setCoachId2(editingHoliday.coach_id_2 || '');
+      const hours = editingHoliday.selected_hours || [];
+      setSelectedHours(hours);
       setNotes(editingHoliday.notes || '');
+
+      const ranges = groupHoursIntoRanges(hours);
+      const initialMap: Record<string, { coachId1: string; coachId2: string }> = {};
+
+      if (editingHoliday.slots && editingHoliday.slots.length > 0) {
+        editingHoliday.slots.forEach(s => {
+          initialMap[s.start_time] = {
+            coachId1: s.coach_id_1,
+            coachId2: s.coach_id_2,
+          };
+        });
+      } else {
+        ranges.forEach(r => {
+          initialMap[r.start_time] = {
+            coachId1: editingHoliday.coach_id_1 || staff[0]?.id || '',
+            coachId2: editingHoliday.coach_id_2 || staff[1]?.id || '',
+          };
+        });
+      }
+      setSlotCoaches(initialMap);
     } else {
-      // Valor por defecto: hoy o próximo feriado típico
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       setDate(tomorrow.toISOString().split('T')[0]);
       setName('');
       setIsClosed(false);
-      setSelectedHours(['09:00', '10:00', '11:00', '12:00']);
-      setCoachId1(staff[0]?.id || '');
-      setCoachId2(staff[1]?.id || '');
+      const defaultHours = ['09:00', '10:00', '11:00', '12:00'];
+      setSelectedHours(defaultHours);
       setNotes('Jornada especial feriado - Doble cobertura');
+
+      const ranges = groupHoursIntoRanges(defaultHours);
+      const initialMap: Record<string, { coachId1: string; coachId2: string }> = {};
+      ranges.forEach(r => {
+        initialMap[r.start_time] = {
+          coachId1: staff[0]?.id || '',
+          coachId2: staff[1]?.id || '',
+        };
+      });
+      setSlotCoaches(initialMap);
     }
     setError('');
   }, [editingHoliday, isHolidayModalOpen, staff]);
 
   // Manejo de checkboxes de horarios
   const toggleHour = (hourId: string) => {
-    setSelectedHours(prev =>
-      prev.includes(hourId) ? prev.filter(h => h !== hourId) : [...prev, hourId].sort()
-    );
+    setSelectedHours(prev => {
+      const next = prev.includes(hourId)
+        ? prev.filter(h => h !== hourId)
+        : [...prev, hourId].sort();
+
+      // Asegurar que los nuevos rangos tengan dupla inicializada
+      const newRanges = groupHoursIntoRanges(next);
+      setSlotCoaches(currentCoaches => {
+        const updated = { ...currentCoaches };
+        newRanges.forEach(r => {
+          if (!updated[r.start_time]) {
+            updated[r.start_time] = {
+              coachId1: staff[0]?.id || '',
+              coachId2: staff[1]?.id || '',
+            };
+          }
+        });
+        return updated;
+      });
+
+      return next;
+    });
   };
 
   const setPresetHours = (preset: 'manana' | 'tarde' | 'todo' | 'ninguno') => {
+    let nextHours: string[] = [];
     switch (preset) {
       case 'manana':
-        setSelectedHours(['09:00', '10:00', '11:00', '12:00']);
+        nextHours = ['09:00', '10:00', '11:00', '12:00'];
         break;
       case 'tarde':
-        setSelectedHours(['16:00', '17:00', '18:00', '19:00']);
+        nextHours = ['16:00', '17:00', '18:00', '19:00'];
         break;
       case 'todo':
-        setSelectedHours(HOURLY_SLOTS.map(s => s.id));
+        nextHours = HOURLY_SLOTS.map(s => s.id);
         break;
       case 'ninguno':
-        setSelectedHours([]);
+        nextHours = [];
         break;
     }
+    setSelectedHours(nextHours);
+
+    const newRanges = groupHoursIntoRanges(nextHours);
+    setSlotCoaches(currentCoaches => {
+      const updated = { ...currentCoaches };
+      newRanges.forEach(r => {
+        if (!updated[r.start_time]) {
+          updated[r.start_time] = {
+            coachId1: staff[0]?.id || '',
+            coachId2: staff[1]?.id || '',
+          };
+        }
+      });
+      return updated;
+    });
+  };
+
+  const handleSlotCoachChange = (
+    startTime: string,
+    field: 'coachId1' | 'coachId2',
+    value: string
+  ) => {
+    setSlotCoaches(prev => ({
+      ...prev,
+      [startTime]: {
+        coachId1: field === 'coachId1' ? value : (prev[startTime]?.coachId1 || staff[0]?.id || ''),
+        coachId2: field === 'coachId2' ? value : (prev[startTime]?.coachId2 || staff[1]?.id || ''),
+      },
+    }));
   };
 
   const handleSave = (e: React.FormEvent) => {
@@ -146,22 +198,47 @@ export const ManageHolidayModal: React.FC = () => {
         setError('Debes tildar al menos un horario en el que se trabajará, o marcar que permanece cerrado.');
         return;
       }
-      if (!coachId1 || !coachId2) {
-        setError('En los feriados la modalidad siempre es de doble cobertura. Seleccioná los 2 coaches.');
-        return;
-      }
-      if (coachId1 === coachId2) {
-        setError('Los 2 coaches deben ser personas distintas para cumplir la doble cobertura.');
-        return;
+
+      for (let i = 0; i < activeRanges.length; i++) {
+        const r = activeRanges[i];
+        const sc = slotCoaches[r.start_time];
+        if (!sc?.coachId1 || !sc?.coachId2) {
+          setError(`En el turno de ${r.time_display} debes seleccionar los 2 coaches para la doble cobertura.`);
+          return;
+        }
+        if (sc.coachId1 === sc.coachId2) {
+          setError(`En el turno de ${r.time_display} los 2 coaches deben ser personas distintas.`);
+          return;
+        }
       }
     }
-
-    const coach1 = staff.find(s => s.id === coachId1);
-    const coach2 = staff.find(s => s.id === coachId2);
 
     const timeDisplay = isClosed
       ? 'Cerrado todo el día'
       : formatSelectedHoursDisplay(selectedHours);
+
+    const holidaySlots: HolidaySlot[] = isClosed
+      ? []
+      : activeRanges.map((r, idx) => {
+          const sc = slotCoaches[r.start_time] || {
+            coachId1: staff[0]?.id || '',
+            coachId2: staff[1]?.id || '',
+          };
+          const c1 = staff.find(s => s.id === sc.coachId1);
+          const c2 = staff.find(s => s.id === sc.coachId2);
+          return {
+            id: `slot-${idx}-${r.start_time}`,
+            start_time: r.start_time,
+            end_time: r.end_time,
+            duration_hours: r.duration_hours,
+            hours: r.hours,
+            time_display: r.time_display,
+            coach_id_1: sc.coachId1,
+            coach_name_1: c1?.name || '',
+            coach_id_2: sc.coachId2,
+            coach_name_2: c2?.name || '',
+          };
+        });
 
     const holidayPayload = {
       date,
@@ -170,10 +247,11 @@ export const ManageHolidayModal: React.FC = () => {
       selected_hours: isClosed ? [] : selectedHours.sort(),
       time_display: timeDisplay,
       total_hours: isClosed ? 0 : selectedHours.length,
-      coach_id_1: isClosed ? '' : (coach1?.id || ''),
-      coach_name_1: isClosed ? '' : (coach1?.name || ''),
-      coach_id_2: isClosed ? '' : (coach2?.id || ''),
-      coach_name_2: isClosed ? '' : (coach2?.name || ''),
+      coach_id_1: holidaySlots[0]?.coach_id_1 || '',
+      coach_name_1: holidaySlots[0]?.coach_name_1 || '',
+      coach_id_2: holidaySlots[0]?.coach_id_2 || '',
+      coach_name_2: holidaySlots[0]?.coach_name_2 || '',
+      slots: holidaySlots,
       notes: notes.trim(),
     };
 
@@ -220,7 +298,7 @@ export const ManageHolidayModal: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-malon-muted">
-                Configuración de horarios trabajados y asignación de doble cobertura
+                Configuración de horarios y duplas en sala
               </p>
             </div>
           </div>
@@ -236,10 +314,10 @@ export const ManageHolidayModal: React.FC = () => {
         </div>
 
         {/* Formulario */}
-        <form onSubmit={handleSave} className="p-4 overflow-y-auto space-y-4 flex-1 text-xs">
+        <form onSubmit={handleSave} className="p-4 overflow-y-auto space-y-4 flex-1">
           {error && (
-            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 flex items-center space-x-2">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center space-x-2 animate-shake">
+              <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{error}</span>
             </div>
           )}
@@ -247,116 +325,110 @@ export const ManageHolidayModal: React.FC = () => {
           {/* Fecha y Nombre */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-malon-muted font-bold mb-1.5 uppercase tracking-wider text-[10px]">
+              <label className="block text-malon-muted font-bold mb-1 uppercase tracking-wider text-[10px]">
                 Fecha del Feriado *
               </label>
               <input
                 type="date"
+                required
                 value={date}
                 onChange={e => setDate(e.target.value)}
-                required
-                className="w-full bg-malon-bg border border-malon-surface focus:border-malon-sand rounded-xl px-3 py-2.5 text-white font-mono text-xs outline-none"
+                className="w-full bg-malon-bg border border-malon-surface focus:border-malon-sand rounded-xl px-3 py-2 text-white text-xs outline-none font-mono"
               />
             </div>
 
             <div>
-              <label className="block text-malon-muted font-bold mb-1.5 uppercase tracking-wider text-[10px]">
-                Motivo / Nombre *
+              <label className="block text-malon-muted font-bold mb-1 uppercase tracking-wider text-[10px]">
+                Nombre del Feriado *
               </label>
               <input
                 type="text"
-                placeholder="Ej: Día de la Diversidad Cultural"
+                required
+                placeholder="Ej: Día de la Memoria / 25 de Mayo"
                 value={name}
                 onChange={e => setName(e.target.value)}
-                required
-                className="w-full bg-malon-bg border border-malon-surface focus:border-malon-sand rounded-xl px-3 py-2.5 text-white text-xs outline-none placeholder:text-malon-muted/50"
+                className="w-full bg-malon-bg border border-malon-surface focus:border-malon-sand rounded-xl px-3 py-2 text-white text-xs outline-none"
               />
             </div>
           </div>
 
-          {/* Modalidad de Apertura */}
-          <div className="bg-malon-surface/40 border border-malon-surface rounded-2xl p-3 space-y-2">
-            <span className="block text-malon-sand font-bold uppercase tracking-wider text-[10px]">
-              Modalidad de Atención
-            </span>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setIsClosed(false)}
-                className={`py-2 px-3 rounded-xl font-bold border transition-all flex items-center justify-center space-x-1.5 ${
-                  !isClosed
-                    ? 'bg-malon-sand text-black border-malon-sand shadow-sm'
-                    : 'bg-malon-bg text-malon-muted border-malon-surface hover:text-white'
-                }`}
-              >
-                <span>🟢 Horario Especial</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsClosed(true)}
-                className={`py-2 px-3 rounded-xl font-bold border transition-all flex items-center justify-center space-x-1.5 ${
-                  isClosed
-                    ? 'bg-red-500/20 text-red-300 border-red-500/50 shadow-sm'
-                    : 'bg-malon-bg text-malon-muted border-malon-surface hover:text-white'
-                }`}
-              >
-                <span>🔴 Cerrado Todo el Día</span>
-              </button>
+          {/* Estado de Apertura */}
+          <div className="bg-malon-bg/60 border border-malon-surface rounded-xl p-3 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <span className="text-xs font-bold text-white block">
+                ¿El gimnasio abre en este feriado?
+              </span>
+              <span className="text-[11px] text-malon-muted block">
+                {isClosed ? 'Cerrado todo el día (sin turnos de sala)' : 'Abierto en horarios especiales'}
+              </span>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setIsClosed(!isClosed)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                isClosed
+                  ? 'bg-red-500/20 text-red-400 border-red-500/40'
+                  : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+              }`}
+            >
+              {isClosed ? '⛔ Cerrado' : '✅ Abierto'}
+            </button>
           </div>
 
-          {/* Selector de Horarios (Tildar los horarios trabajados) */}
+          {/* Selección interactiva de horarios (solo si está abierto) */}
           {!isClosed && (
-            <div className="bg-malon-bg/80 border border-malon-surface rounded-2xl p-3.5 space-y-3">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-bold text-white flex items-center space-x-1.5">
-                    <Clock className="w-4 h-4 text-malon-sand" />
-                    <span>Tildar Horarios que se Trabajan</span>
-                  </h4>
-                  <p className="text-[11px] text-malon-muted mt-0.5">
-                    Marcá cada bloque horario individual que estará abierto
+                  <label className="block text-malon-sand font-bold uppercase tracking-wider text-[11px] flex items-center space-x-1.5">
+                    <Clock className="w-3.5 h-3.5" />
+                    <span>Horarios a Trabajar (Tildá los necesarios)</span>
+                  </label>
+                  <p className="text-[10px] text-malon-muted">
+                    Podés seleccionar turnos continuos o no consecutivos (ej: mañana, mediodía y tarde)
                   </p>
                 </div>
-                <span className="font-mono text-malon-sand font-bold bg-malon-surface px-2 py-0.5 rounded-lg border border-malon-sand/30">
+                <span className="font-mono text-xs font-bold text-white bg-malon-surface px-2 py-0.5 rounded-md">
                   {selectedHours.length} hs seleccionadas
                 </span>
               </div>
 
-              {/* Botones de selección rápida */}
-              <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 text-[11px]">
+              {/* Botones de selección rápida (Presets) */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] text-malon-muted">Presets:</span>
                 <button
                   type="button"
                   onClick={() => setPresetHours('manana')}
-                  className="px-2 py-1 rounded-lg bg-malon-surface hover:bg-malon-surface/80 border border-malon-surface text-amber-400 font-semibold whitespace-nowrap"
+                  className="px-2 py-1 rounded-md bg-malon-surface hover:bg-malon-surface/80 text-[10px] text-malon-sand font-semibold transition"
                 >
                   Mañana (09-13)
                 </button>
                 <button
                   type="button"
                   onClick={() => setPresetHours('tarde')}
-                  className="px-2 py-1 rounded-lg bg-malon-surface hover:bg-malon-surface/80 border border-malon-surface text-orange-400 font-semibold whitespace-nowrap"
+                  className="px-2 py-1 rounded-md bg-malon-surface hover:bg-malon-surface/80 text-[10px] text-malon-sand font-semibold transition"
                 >
                   Tarde (16-20)
                 </button>
                 <button
                   type="button"
                   onClick={() => setPresetHours('todo')}
-                  className="px-2 py-1 rounded-lg bg-malon-surface hover:bg-malon-surface/80 border border-malon-surface text-white font-semibold whitespace-nowrap"
+                  className="px-2 py-1 rounded-md bg-malon-surface hover:bg-malon-surface/80 text-[10px] text-white font-semibold transition"
                 >
-                  Todo el día (07-21)
+                  Todo el día
                 </button>
                 <button
                   type="button"
                   onClick={() => setPresetHours('ninguno')}
-                  className="px-2 py-1 rounded-lg bg-malon-surface hover:bg-malon-surface/80 border border-malon-surface text-malon-muted font-semibold whitespace-nowrap"
+                  className="px-2 py-1 rounded-md bg-malon-surface hover:bg-malon-surface/80 text-[10px] text-malon-muted hover:text-white transition"
                 >
                   Desmarcar
                 </button>
               </div>
 
-              {/* Grilla interactiva de bloques horarios con checkbox */}
-              <div className="grid grid-cols-2 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+              {/* Grilla de checkboxes de horas */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-1 bg-malon-bg/60 rounded-xl border border-malon-surface/80">
                 {HOURLY_SLOTS.map(slot => {
                   const isChecked = selectedHours.includes(slot.id);
                   return (
@@ -364,18 +436,16 @@ export const ManageHolidayModal: React.FC = () => {
                       key={slot.id}
                       type="button"
                       onClick={() => toggleHour(slot.id)}
-                      className={`p-2 rounded-xl border text-left font-mono transition-all flex items-center justify-between ${
+                      className={`flex items-center justify-between p-2 rounded-lg border text-left transition-all ${
                         isChecked
-                          ? 'bg-malon-sand text-black font-bold border-malon-sand shadow-sm'
-                          : 'bg-malon-card/80 text-malon-muted border-malon-surface hover:border-malon-sand/40 hover:text-white'
+                          ? 'bg-malon-sand/20 border-malon-sand text-white font-bold shadow-sm'
+                          : 'bg-malon-card hover:bg-malon-surface border-malon-surface text-malon-muted'
                       }`}
                     >
-                      <span className="text-xs">{slot.label} hs</span>
+                      <span className="font-mono text-xs">{slot.label}</span>
                       <div
-                        className={`w-4 h-4 rounded-md flex items-center justify-center border ${
-                          isChecked
-                            ? 'bg-black text-malon-sand border-black'
-                            : 'border-malon-surface bg-malon-bg'
+                        className={`w-4 h-4 rounded flex items-center justify-center transition-colors ${
+                          isChecked ? 'bg-malon-sand text-black' : 'border border-malon-muted/40'
                         }`}
                       >
                         {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
@@ -395,59 +465,111 @@ export const ManageHolidayModal: React.FC = () => {
             </div>
           )}
 
-          {/* Asignación de Coaches - DOBLE COBERTURA OBLIGATORIA */}
-          {!isClosed && (
-            <div className="bg-gradient-to-r from-malon-sand/10 to-transparent border border-malon-sand/40 rounded-2xl p-3.5 space-y-3">
-              <div className="flex items-center space-x-2">
-                <div className="w-7 h-7 rounded-lg bg-malon-sand text-black flex items-center justify-center font-bold">
-                  <Users className="w-4 h-4" />
+          {/* Asignación de Coaches - DOBLE COBERTURA POR DUPLA DE CADA TURNO */}
+          {!isClosed && activeRanges.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="w-7 h-7 rounded-lg bg-malon-sand text-black flex items-center justify-center font-bold">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-white text-xs sm:text-sm">
+                      {activeRanges.length > 1
+                        ? `Duplas por Turno (${activeRanges.length} turnos no consecutivos)`
+                        : 'Doble Cobertura Feriado'}
+                    </h4>
+                    <p className="text-[10px] text-malon-sand">
+                      {activeRanges.length > 1
+                        ? 'Podés asignar duplas de coaches distintas para cada franja de horario'
+                        : 'Los feriados operan estrictamente en dupla (2 coaches en sala)'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-bold text-white">Doble Cobertura Feriado</h4>
-                  <p className="text-[10px] text-malon-sand">
-                    Los feriados operan estrictamente en dupla (2 coaches en sala)
-                  </p>
-                </div>
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30 font-mono">
+                  {selectedHours.length} hs totales
+                </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-malon-muted font-bold mb-1 uppercase tracking-wider text-[10px]">
-                    Coach 1 (Titular Dupla) *
-                  </label>
-                  <select
-                    value={coachId1}
-                    onChange={e => setCoachId1(e.target.value)}
-                    required={!isClosed}
-                    className="w-full bg-malon-bg border border-malon-surface focus:border-malon-sand rounded-xl px-3 py-2 text-white text-xs outline-none font-bold"
-                  >
-                    <option value="" disabled>Seleccionar Coach 1</option>
-                    {staff.map(c => (
-                      <option key={c.id} value={c.id} disabled={c.id === coachId2}>
-                        {c.name} ({c.initials})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              {/* Lista de duplas por cada turno/rango continuo */}
+              <div className="space-y-2.5">
+                {activeRanges.map((range, index) => {
+                  const currentSlotCoaches = slotCoaches[range.start_time] || {
+                    coachId1: staff[0]?.id || '',
+                    coachId2: staff[1]?.id || '',
+                  };
 
-                <div>
-                  <label className="block text-malon-muted font-bold mb-1 uppercase tracking-wider text-[10px]">
-                    Coach 2 (Acompañante Dupla) *
-                  </label>
-                  <select
-                    value={coachId2}
-                    onChange={e => setCoachId2(e.target.value)}
-                    required={!isClosed}
-                    className="w-full bg-malon-bg border border-malon-surface focus:border-malon-sand rounded-xl px-3 py-2 text-white text-xs outline-none font-bold"
-                  >
-                    <option value="" disabled>Seleccionar Coach 2</option>
-                    {staff.map(c => (
-                      <option key={c.id} value={c.id} disabled={c.id === coachId1}>
-                        {c.name} ({c.initials})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                  return (
+                    <div
+                      key={range.start_time}
+                      className="bg-gradient-to-r from-malon-sand/10 to-transparent border border-malon-sand/40 rounded-2xl p-3.5 space-y-2.5"
+                    >
+                      <div className="flex items-center justify-between pb-1.5 border-b border-malon-surface/60">
+                        <span className="font-bold text-xs text-white flex items-center space-x-1.5">
+                          <Clock className="w-3.5 h-3.5 text-malon-sand" />
+                          <span>
+                            Turno {activeRanges.length > 1 ? index + 1 : ''}: <strong className="text-malon-sand">{range.time_display}</strong>
+                          </span>
+                        </span>
+                        <span className="text-[10px] font-mono text-malon-muted">
+                          {range.duration_hours} {range.duration_hours === 1 ? 'hora' : 'horas'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                        <div>
+                          <label className="block text-malon-muted font-bold mb-1 uppercase tracking-wider text-[10px]">
+                            Coach 1 (Titular Dupla) *
+                          </label>
+                          <select
+                            value={currentSlotCoaches.coachId1}
+                            onChange={e =>
+                              handleSlotCoachChange(range.start_time, 'coachId1', e.target.value)
+                            }
+                            required={!isClosed}
+                            className="w-full bg-malon-bg border border-malon-surface focus:border-malon-sand rounded-xl px-2.5 py-2 text-white text-xs outline-none font-bold"
+                          >
+                            <option value="" disabled>Seleccionar Coach 1</option>
+                            {staff.map(c => (
+                              <option
+                                key={c.id}
+                                value={c.id}
+                                disabled={c.id === currentSlotCoaches.coachId2}
+                              >
+                                {c.name} ({c.initials})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-malon-muted font-bold mb-1 uppercase tracking-wider text-[10px]">
+                            Coach 2 (Acompañante Dupla) *
+                          </label>
+                          <select
+                            value={currentSlotCoaches.coachId2}
+                            onChange={e =>
+                              handleSlotCoachChange(range.start_time, 'coachId2', e.target.value)
+                            }
+                            required={!isClosed}
+                            className="w-full bg-malon-bg border border-malon-surface focus:border-malon-sand rounded-xl px-2.5 py-2 text-white text-xs outline-none font-bold"
+                          >
+                            <option value="" disabled>Seleccionar Coach 2</option>
+                            {staff.map(c => (
+                              <option
+                                key={c.id}
+                                value={c.id}
+                                disabled={c.id === currentSlotCoaches.coachId1}
+                              >
+                                {c.name} ({c.initials})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -486,16 +608,17 @@ export const ManageHolidayModal: React.FC = () => {
                   setIsHolidayModalOpen(false);
                   setEditingHoliday(null);
                 }}
-                className="px-4 py-2.5 rounded-xl bg-malon-surface text-malon-muted hover:text-white font-bold transition-all"
+                className="px-4 py-2.5 rounded-xl bg-malon-surface hover:bg-malon-surface/80 text-malon-muted hover:text-white font-bold transition-all"
               >
                 Cancelar
               </button>
+
               <button
                 type="submit"
-                className="px-4 py-2.5 rounded-xl bg-malon-sand hover:bg-malon-sand-hover text-black font-bold transition-all flex items-center space-x-1.5 shadow-md shadow-malon-sand/20"
+                className="px-5 py-2.5 rounded-xl bg-malon-sand hover:bg-malon-sand-hover text-black font-black transition-all flex items-center space-x-1.5 shadow-lg shadow-malon-sand/20"
               >
                 <Save className="w-4 h-4" />
-                <span>{editingHoliday ? 'Actualizar Feriado' : 'Guardar Feriado'}</span>
+                <span>Guardar Feriado</span>
               </button>
             </div>
           </div>

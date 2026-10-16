@@ -476,14 +476,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setHolidays(prev => [...prev, newHoliday].sort((a, b) => a.date.localeCompare(b.date)));
 
     // Aviso 3: Notificación de asignación de turno de feriado
-    if (!newHoliday.is_closed && (newHoliday.coach_name_1 || newHoliday.coach_name_2)) {
-      const coaches = [newHoliday.coach_name_1, newHoliday.coach_name_2].filter(Boolean).join(' y ');
-      addNotification({
-        type: 'holiday_assignment',
-        title: '📅 Asignación de Turno de Feriado',
-        message: `Feriado "${newHoliday.name}" (${newHoliday.date}): se asignó turno especial de doble cobertura (${newHoliday.time_display}) a ${coaches}.`,
-        link_tab: 'general',
-      });
+    if (!newHoliday.is_closed) {
+      const assignedCoachNames = new Set<string>();
+      if (newHoliday.slots && newHoliday.slots.length > 0) {
+        newHoliday.slots.forEach(slot => {
+          if (slot.coach_name_1) assignedCoachNames.add(slot.coach_name_1);
+          if (slot.coach_name_2) assignedCoachNames.add(slot.coach_name_2);
+        });
+      } else {
+        if (newHoliday.coach_name_1) assignedCoachNames.add(newHoliday.coach_name_1);
+        if (newHoliday.coach_name_2) assignedCoachNames.add(newHoliday.coach_name_2);
+      }
+
+      if (assignedCoachNames.size > 0) {
+        const coaches = Array.from(assignedCoachNames).join(', ');
+        addNotification({
+          type: 'holiday_assignment',
+          title: '📅 Asignación de Turno de Feriado',
+          message: `Feriado "${newHoliday.name}" (${newHoliday.date}): se asignaron turnos de doble cobertura (${newHoliday.time_display}) a ${coaches}.`,
+          link_tab: 'general',
+        });
+      }
     }
   };
 
@@ -493,14 +506,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
 
     // Aviso 3: Notificación de actualización / reasignación de turno de feriado
-    if (!holiday.is_closed && (holiday.coach_name_1 || holiday.coach_name_2)) {
-      const coaches = [holiday.coach_name_1, holiday.coach_name_2].filter(Boolean).join(' y ');
-      addNotification({
-        type: 'holiday_assignment',
-        title: '📅 Turno de Feriado Modificado',
-        message: `Feriado "${holiday.name}" (${holiday.date}): asignados en doble cobertura (${holiday.time_display}) ${coaches}.`,
-        link_tab: 'general',
-      });
+    if (!holiday.is_closed) {
+      const assignedCoachNames = new Set<string>();
+      if (holiday.slots && holiday.slots.length > 0) {
+        holiday.slots.forEach(slot => {
+          if (slot.coach_name_1) assignedCoachNames.add(slot.coach_name_1);
+          if (slot.coach_name_2) assignedCoachNames.add(slot.coach_name_2);
+        });
+      } else {
+        if (holiday.coach_name_1) assignedCoachNames.add(holiday.coach_name_1);
+        if (holiday.coach_name_2) assignedCoachNames.add(holiday.coach_name_2);
+      }
+
+      if (assignedCoachNames.size > 0) {
+        const coaches = Array.from(assignedCoachNames).join(', ');
+        addNotification({
+          type: 'holiday_assignment',
+          title: '📅 Turno de Feriado Modificado',
+          message: `Feriado "${holiday.name}" (${holiday.date}): asignados en doble cobertura (${holiday.time_display}) a ${coaches}.`,
+          link_tab: 'general',
+        });
+      }
     }
   };
 
@@ -541,7 +567,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // 2. Recordatorio cuando se acerca el turno de feriado (próximos 3 días)
     holidays.forEach(holiday => {
       if (!holiday.is_closed) {
-        const isMyHoliday = holiday.coach_id_1 === currentCoach.id || holiday.coach_id_2 === currentCoach.id;
+        let isMyHoliday = false;
+        let mySlotText = holiday.time_display;
+
+        if (holiday.slots && holiday.slots.length > 0) {
+          const mySlots = holiday.slots.filter(
+            s => s.coach_id_1 === currentCoach.id || s.coach_id_2 === currentCoach.id
+          );
+          if (mySlots.length > 0) {
+            isMyHoliday = true;
+            mySlotText = mySlots.map(s => s.time_display).join(', ');
+          }
+        } else {
+          isMyHoliday = holiday.coach_id_1 === currentCoach.id || holiday.coach_id_2 === currentCoach.id;
+        }
+
         if (isMyHoliday) {
           const holDate = new Date(holiday.date + 'T00:00:00');
           const todayDate = new Date(todayStr + 'T00:00:00');
@@ -555,7 +595,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               addNotification({
                 type: 'holiday_reminder',
                 title: '🎉 Recordatorio: Turno de Feriado Cercano',
-                message: `${whenText} (${holiday.name} - ${holiday.date}): Tenés turno asignado (${holiday.time_display}) en doble cobertura.`,
+                message: `${whenText} (${holiday.name} - ${holiday.date}): Tenés turno asignado (${mySlotText}) en doble cobertura.`,
                 target_coach_id: currentCoach.id,
                 link_tab: 'mi-grilla',
               });

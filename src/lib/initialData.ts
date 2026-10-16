@@ -602,6 +602,20 @@ export const INITIAL_HOLIDAYS: HolidaySchedule[] = [
     coach_name_1: 'Patri',
     coach_id_2: 'fede',
     coach_name_2: 'Fede',
+    slots: [
+      {
+        id: 'slot-0-09:00',
+        start_time: '09:00',
+        end_time: '13:00',
+        duration_hours: 4,
+        hours: ['09:00', '10:00', '11:00', '12:00'],
+        time_display: '09:00 a 13:00 hs',
+        coach_id_1: 'patri',
+        coach_name_1: 'Patri',
+        coach_id_2: 'fede',
+        coach_name_2: 'Fede',
+      },
+    ],
     notes: 'Jornada especial feriado - Doble cobertura',
   },
   {
@@ -616,6 +630,20 @@ export const INITIAL_HOLIDAYS: HolidaySchedule[] = [
     coach_name_1: 'Vicky',
     coach_id_2: 'gala',
     coach_name_2: 'Gala',
+    slots: [
+      {
+        id: 'slot-0-09:00',
+        start_time: '09:00',
+        end_time: '13:00',
+        duration_hours: 4,
+        hours: ['09:00', '10:00', '11:00', '12:00'],
+        time_display: '09:00 a 13:00 hs',
+        coach_id_1: 'vicky',
+        coach_name_1: 'Vicky',
+        coach_id_2: 'gala',
+        coach_name_2: 'Gala',
+      },
+    ],
     notes: 'Jornada especial feriado - Doble cobertura',
   },
   {

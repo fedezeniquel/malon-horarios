@@ -1,4 +1,4 @@
-import type { StaffMember, Shift, SaturdayGuard, ShiftChangeRequest, HolidaySchedule } from '../types';
+import type { StaffMember, Shift, SaturdayGuard, ShiftChangeRequest, HolidaySchedule, Franja } from '../types';
 import { getMonthlyGuards } from './guardRotation';
 
 // Horas operativas del gimnasio Malón en Movimiento (24hs)
@@ -22,6 +22,20 @@ export const WORKING_HOURS = [
 
 // Opciones disponibles para horario de inicio (el gimnasio cierra a las 21:00)
 export const START_HOURS = WORKING_HOURS.slice(0, -1); // 07:00 a 20:00
+
+/**
+ * Retorna la franja correspondiente según el horario de inicio:
+ * - Turno Mañana: 07:00 a 13:00
+ * - Turno Siesta: 13:00 a 16:00
+ * - Turno Tarde: 16:00 a 19:00
+ * - Turno Noche: 19:00 a 21:00
+ */
+export const getFranjaFromTime = (startTime: string): Franja => {
+  if (startTime < '13:00') return 'manana';
+  if (startTime < '16:00') return 'siesta';
+  if (startTime < '19:00') return 'tarde';
+  return 'noche';
+};
 
 /**
  * Calcula la duración en horas entre dos horarios en formato 24hs (HH:mm)
@@ -52,6 +66,72 @@ export const getHoursBetween = (start: string, end: string): string[] => {
     hours.push(`${String(h).padStart(2, '0')}:00`);
   }
   return hours;
+};
+
+/**
+ * Agrupa horas seleccionadas en intervalos/turnos continuos (ej: ["08:00", "13:00", "18:00"] -> 3 turnos de 1h)
+ */
+export interface ComputedHourRange {
+  start_time: string;
+  end_time: string;
+  duration_hours: number;
+  hours: string[];
+  time_display: string;
+}
+
+export const groupHoursIntoRanges = (selectedHours: string[]): ComputedHourRange[] => {
+  if (selectedHours.length === 0) return [];
+  const sorted = [...selectedHours].sort().map(s => parseInt(s.split(':')[0], 10));
+  const ranges: { start: number; end: number; hours: string[] }[] = [];
+
+  let rangeStart = sorted[0];
+  let prevHour = sorted[0];
+  let currentHours: string[] = [`${String(sorted[0]).padStart(2, '0')}:00`];
+
+  for (let i = 1; i < sorted.length; i++) {
+    const curHour = sorted[i];
+    const hourStr = `${String(curHour).padStart(2, '0')}:00`;
+    if (curHour === prevHour + 1) {
+      prevHour = curHour;
+      currentHours.push(hourStr);
+    } else {
+      ranges.push({
+        start: rangeStart,
+        end: prevHour + 1,
+        hours: currentHours,
+      });
+      rangeStart = curHour;
+      prevHour = curHour;
+      currentHours = [hourStr];
+    }
+  }
+  ranges.push({
+    start: rangeStart,
+    end: prevHour + 1,
+    hours: currentHours,
+  });
+
+  return ranges.map(r => {
+    const start_time = `${String(r.start).padStart(2, '0')}:00`;
+    const end_time = `${String(r.end).padStart(2, '0')}:00`;
+    const duration = r.end - r.start;
+    return {
+      start_time,
+      end_time,
+      duration_hours: duration,
+      hours: r.hours,
+      time_display: `${start_time} a ${end_time} hs`,
+    };
+  });
+};
+
+/**
+ * Convierte un array de horas seleccionadas en un resumen legible de texto continuo
+ */
+export const formatSelectedHoursDisplay = (selected: string[]): string => {
+  const ranges = groupHoursIntoRanges(selected);
+  if (ranges.length === 0) return 'Sin horarios seleccionados';
+  return ranges.map(r => `${r.start_time} a ${r.end_time}`).join(' y ') + ' hs';
 };
 
 export interface CoachMonthlyAudit {
@@ -146,12 +226,28 @@ export const calculateMonthlyAudit = (
     }, 0);
     const saturdayDates = myGuardsThisMonth.map(g => g.date);
 
-    // 4. Horas de Feriados trabajadas (Doble Cobertura)
-    const myHolidaysThisMonth = monthHolidays.filter(
-      h => !h.is_closed && (h.coach_id_1 === coach.id || h.coach_id_2 === coach.id)
-    );
-    const holidayMonthlyHours = myHolidaysThisMonth.reduce((acc, h) => acc + (h.total_hours || 0), 0);
-    const holidayNames = myHolidaysThisMonth.map(h => `${h.name} (${h.date.split('-').slice(1).reverse().join('/')})`);
+    // 4. Horas de Feriados trabajadas (Doble Cobertura por turnos/duplas)
+    let holidayMonthlyHours = 0;
+    const holidayNamesSet = new Set<string>();
+
+    monthHolidays.forEach(h => {
+      if (h.is_closed) return;
+
+      if (h.slots && h.slots.length > 0) {
+        h.slots.forEach(slot => {
+          if (slot.coach_id_1 === coach.id || slot.coach_id_2 === coach.id) {
+            holidayMonthlyHours += slot.duration_hours;
+            holidayNamesSet.add(`${h.name} (${h.date.split('-').slice(1).reverse().join('/')} [${slot.time_display}])`);
+          }
+        });
+      } else {
+        if (h.coach_id_1 === coach.id || h.coach_id_2 === coach.id) {
+          holidayMonthlyHours += (h.total_hours || 0);
+          holidayNamesSet.add(`${h.name} (${h.date.split('-').slice(1).reverse().join('/')})`);
+        }
+      }
+    });
+    const holidayNames = Array.from(holidayNamesSet);
 
     // 5. Cambios y reemplazos confirmados
     // Regla de compensación:

@@ -51,9 +51,13 @@ export const MiGrilla: React.FC = () => {
   const nextGuard = myGuardsThisMonth.find(g => new Date(g.date) >= new Date(new Date().setHours(0,0,0,0))) || myGuardsThisMonth[0];
 
   // Feriados donde trabaja el coach actual
-  const myHolidays = holidays.filter(
-    h => !h.is_closed && (h.coach_id_1 === currentCoach.id || h.coach_id_2 === currentCoach.id)
-  );
+  const myHolidays = holidays.filter(h => {
+    if (h.is_closed) return false;
+    if (h.slots && h.slots.length > 0) {
+      return h.slots.some(s => s.coach_id_1 === currentCoach.id || s.coach_id_2 === currentCoach.id);
+    }
+    return h.coach_id_1 === currentCoach.id || h.coach_id_2 === currentCoach.id;
+  });
 
   const selectedDayShifts = myShifts.filter(s => s.day_of_week === selectedDay);
 
@@ -373,26 +377,51 @@ export const MiGrilla: React.FC = () => {
           </h4>
           <div className="space-y-2.5 mt-3">
             {myHolidays.map(h => {
-              const partner = h.coach_id_1 === currentCoach.id ? h.coach_name_2 : h.coach_name_1;
+              const mySlots = h.slots
+                ? h.slots.filter(s => s.coach_id_1 === currentCoach.id || s.coach_id_2 === currentCoach.id)
+                : [];
+
               return (
                 <div
                   key={h.id}
-                  className="p-3 rounded-xl bg-malon-surface/70 border border-malon-sand/40 text-xs space-y-1.5"
+                  className="p-3 rounded-xl bg-malon-surface/70 border border-malon-sand/40 text-xs space-y-2"
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-white text-sm">{h.name}</span>
                     <span className="px-2 py-0.5 rounded-lg bg-malon-card border border-malon-sand/40 text-malon-sand font-mono font-bold text-xs">
-                      {h.time_display}
+                      {h.date.split('-').slice(1).reverse().join('/')}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-malon-muted text-[11px]">
-                    <span className="font-mono text-white font-semibold">
-                      Fecha: {h.date.split('-').slice(1).reverse().join('/')}
-                    </span>
-                    <span className="text-malon-sand">
-                      En dupla con: <strong className="text-white">{partner}</strong>
-                    </span>
-                  </div>
+
+                  {mySlots.length > 0 ? (
+                    <div className="space-y-1.5 pt-1 border-t border-malon-surface/60">
+                      {mySlots.map((s, idx) => {
+                        const partner = s.coach_id_1 === currentCoach.id ? s.coach_name_2 : s.coach_name_1;
+                        return (
+                          <div
+                            key={s.id || idx}
+                            className="flex items-center justify-between text-[11px] bg-malon-card/60 p-2 rounded-lg border border-malon-surface/60"
+                          >
+                            <span className="font-mono text-malon-sand font-bold">
+                              {s.time_display} ({s.duration_hours} hs)
+                            </span>
+                            <span className="text-malon-muted">
+                              Dupla: <strong className="text-white">{partner}</strong>
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between text-malon-muted text-[11px] pt-1 border-t border-malon-surface/60">
+                      <span className="font-mono text-malon-sand font-bold">
+                        {h.time_display}
+                      </span>
+                      <span>
+                        Dupla: <strong className="text-white">{h.coach_id_1 === currentCoach.id ? h.coach_name_2 : h.coach_name_1}</strong>
+                      </span>
+                    </div>
+                  )}
                 </div>
               );
             })}

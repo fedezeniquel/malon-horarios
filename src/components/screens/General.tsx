@@ -19,6 +19,7 @@ import {
   FileSpreadsheet,
   Calendar,
   Sparkles,
+  Coffee,
 } from 'lucide-react';
 import type { Shift, SaturdayGuard, HolidaySchedule } from '../../types';
 import { getMonthlyGuards, MONTH_NAMES } from '../../lib/guardRotation';
@@ -92,9 +93,16 @@ export const General: React.FC = () => {
 
   const dayShifts = shifts.filter(s => s.day_of_week === selectedDay);
 
-  const mananaShifts = dayShifts.filter(s => s.franja === 'manana');
-  const tardeShifts = dayShifts.filter(s => s.franja === 'tarde');
-  const nocheShifts = dayShifts.filter(s => s.franja === 'noche');
+  const mananaShifts = dayShifts.filter(s => s.franja === 'manana' || s.start_time < '13:00');
+  const siestaShifts = dayShifts.filter(
+    s => s.franja === 'siesta' || (s.start_time >= '13:00' && s.start_time < '16:00')
+  );
+  const tardeShifts = dayShifts.filter(
+    s =>
+      s.start_time >= '16:00' &&
+      s.start_time < '19:00'
+  );
+  const nocheShifts = dayShifts.filter(s => s.franja === 'noche' || s.start_time >= '19:00');
 
   const groupDoubleShifts = (shiftList: Shift[]) => {
     const renderedIds = new Set<string>();
@@ -421,7 +429,7 @@ export const General: React.FC = () => {
             ? `${monthlyGuards.length} sábados este mes`
             : selectedDay === 7
             ? `${holidays.length} fechas registradas`
-            : '3 Franjas Operativas'}
+            : '4 Franjas Operativas'}
         </span>
       </div>
 
@@ -493,37 +501,71 @@ export const General: React.FC = () => {
                     </div>
 
                     {/* Coaches con Doble Cobertura si está abierto */}
+                    {/* Coaches con Doble Cobertura si está abierto */}
                     {!h.is_closed ? (
-                      <div className="pt-2 border-t border-malon-surface/60 flex items-center justify-between flex-wrap gap-2">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-[10px] uppercase font-bold text-malon-sand tracking-wider flex items-center space-x-1">
-                            <Users className="w-3 h-3" />
-                            <span>Doble Cobertura:</span>
-                          </span>
-
-                          <div className="flex items-center space-x-1.5">
-                            <div className="flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-malon-card border border-malon-sand/30 text-xs font-bold text-white">
-                              <div className="w-3.5 h-3.5 rounded-full bg-malon-sand/20 text-malon-sand text-[8px] flex items-center justify-center font-black">
-                                {h.coach_name_1.slice(0, 2).toUpperCase()}
-                              </div>
-                              <span>{h.coach_name_1}</span>
-                            </div>
-
-                            <span className="text-malon-muted text-xs">+</span>
-
-                            <div className="flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-malon-card border border-malon-sand/30 text-xs font-bold text-white">
-                              <div className="w-3.5 h-3.5 rounded-full bg-malon-sand/20 text-malon-sand text-[8px] flex items-center justify-center font-black">
-                                {h.coach_name_2.slice(0, 2).toUpperCase()}
-                              </div>
-                              <span>{h.coach_name_2}</span>
+                      <div className="pt-2 border-t border-malon-surface/60 space-y-2">
+                        {h.slots && h.slots.length > 1 ? (
+                          <div className="space-y-1.5">
+                            <span className="text-[10px] uppercase font-bold text-malon-sand tracking-wider flex items-center space-x-1">
+                              <Users className="w-3 h-3" />
+                              <span>Turnos y Duplas Asignadas ({h.slots.length}):</span>
+                            </span>
+                            <div className="space-y-1.5">
+                              {h.slots.map((slot, sIdx) => (
+                                <div
+                                  key={slot.id || sIdx}
+                                  className="p-2 rounded-xl bg-malon-card/80 border border-malon-surface/80 flex items-center justify-between flex-wrap gap-2 text-xs"
+                                >
+                                  <div className="flex items-center space-x-2">
+                                    <span className="font-mono font-bold text-malon-sand text-[11px] bg-malon-surface/60 px-2 py-0.5 rounded-lg border border-malon-surface">
+                                      {slot.time_display}
+                                    </span>
+                                    <div className="flex items-center space-x-1.5">
+                                      <span className="font-bold text-white">{slot.coach_name_1}</span>
+                                      <span className="text-malon-muted text-xs">+</span>
+                                      <span className="font-bold text-white">{slot.coach_name_2}</span>
+                                    </div>
+                                  </div>
+                                  <span className="text-[10px] font-mono text-malon-muted">
+                                    {slot.duration_hours} {slot.duration_hours === 1 ? 'hora' : 'horas'}
+                                  </span>
+                                </div>
+                              ))}
                             </div>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-[10px] uppercase font-bold text-malon-sand tracking-wider flex items-center space-x-1">
+                                <Users className="w-3 h-3" />
+                                <span>Doble Cobertura:</span>
+                              </span>
 
-                        {h.total_hours > 0 && (
-                          <span className="text-[11px] font-mono font-bold text-malon-sand">
-                            {h.total_hours} hs cada uno
-                          </span>
+                              <div className="flex items-center space-x-1.5">
+                                <div className="flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-malon-card border border-malon-sand/30 text-xs font-bold text-white">
+                                  <div className="w-3.5 h-3.5 rounded-full bg-malon-sand/20 text-malon-sand text-[8px] flex items-center justify-center font-black">
+                                    {(h.slots?.[0]?.coach_name_1 || h.coach_name_1).slice(0, 2).toUpperCase()}
+                                  </div>
+                                  <span>{h.slots?.[0]?.coach_name_1 || h.coach_name_1}</span>
+                                </div>
+
+                                <span className="text-malon-muted text-xs">+</span>
+
+                                <div className="flex items-center space-x-1 px-2 py-0.5 rounded-lg bg-malon-card border border-malon-sand/30 text-xs font-bold text-white">
+                                  <div className="w-3.5 h-3.5 rounded-full bg-malon-sand/20 text-malon-sand text-[8px] flex items-center justify-center font-black">
+                                    {(h.slots?.[0]?.coach_name_2 || h.coach_name_2).slice(0, 2).toUpperCase()}
+                                  </div>
+                                  <span>{h.slots?.[0]?.coach_name_2 || h.coach_name_2}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {h.total_hours > 0 && (
+                              <span className="text-[11px] font-mono font-bold text-malon-sand">
+                                {h.total_hours} hs cada uno
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
                     ) : (
@@ -704,7 +746,7 @@ export const General: React.FC = () => {
           </div>
         </div>
       ) : (
-        /* Franjas del día de semana: Mañana, Tarde, Noche - COBERTURA SIMPLE Y DOBLE CON LA MISMA UI */
+        /* Franjas del día de semana: Mañana (7-13), Siesta (13-16), Tarde (16-19), Noche (19-21) */
         <div className="space-y-3">
           {/* 1. FRANJA MAÑANA (07:00 a 13:00) */}
           <div className="bg-malon-card border border-malon-surface rounded-2xl p-3.5 space-y-2.5">
@@ -725,7 +767,26 @@ export const General: React.FC = () => {
             </div>
           </div>
 
-          {/* 2. FRANJA TARDE (13:00 a 18:00) */}
+          {/* 2. FRANJA SIESTA (13:00 a 16:00) */}
+          <div className="bg-malon-card border border-malon-surface rounded-2xl p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between border-b border-malon-surface/80 pb-2">
+              <div className="flex items-center space-x-2">
+                <Coffee className="w-4 h-4 text-yellow-400" />
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                  Turno Siesta
+                </h4>
+              </div>
+              <span className="text-xs font-mono font-bold text-yellow-400">
+                13:00 a 16:00 hs
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              {groupDoubleShifts(siestaShifts).map(renderShiftCard)}
+            </div>
+          </div>
+
+          {/* 3. FRANJA TARDE (16:00 a 19:00) */}
           <div className="bg-malon-card border border-malon-surface rounded-2xl p-3.5 space-y-2.5">
             <div className="flex items-center justify-between border-b border-malon-surface/80 pb-2">
               <div className="flex items-center space-x-2">
@@ -735,7 +796,7 @@ export const General: React.FC = () => {
                 </h4>
               </div>
               <span className="text-xs font-mono font-bold text-orange-400">
-                13:00 a 18:00 hs
+                16:00 a 19:00 hs
               </span>
             </div>
 
@@ -744,7 +805,7 @@ export const General: React.FC = () => {
             </div>
           </div>
 
-          {/* 3. FRANJA NOCHE (18:00 a 21:00) */}
+          {/* 4. FRANJA NOCHE (19:00 a 21:00) */}
           <div className="bg-malon-card border border-malon-surface rounded-2xl p-3.5 space-y-2.5">
             <div className="flex items-center justify-between border-b border-malon-surface/80 pb-2">
               <div className="flex items-center space-x-2">
@@ -754,7 +815,7 @@ export const General: React.FC = () => {
                 </h4>
               </div>
               <span className="text-xs font-mono font-bold text-indigo-400">
-                18:00 a 21:00 hs
+                19:00 a 21:00 hs
               </span>
             </div>
 

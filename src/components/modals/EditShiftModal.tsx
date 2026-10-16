@@ -175,11 +175,12 @@ export const EditShiftModal: React.FC = () => {
             <label className="font-semibold text-malon-sand uppercase tracking-wider block mb-1.5 text-[10px]">
               Franja de Sala
             </label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               {[
-                { id: 'manana', label: 'Mañana' },
-                { id: 'tarde', label: 'Tarde' },
-                { id: 'noche', label: 'Noche' },
+                { id: 'manana', label: 'Mañana (07-13)' },
+                { id: 'siesta', label: 'Siesta (13-16)' },
+                { id: 'tarde', label: 'Tarde (16-19)' },
+                { id: 'noche', label: 'Noche (19-21)' },
               ].map(f => (
                 <button
                   key={f.id}
@@ -189,17 +190,20 @@ export const EditShiftModal: React.FC = () => {
                     if (!editingBlock) {
                       if (f.id === 'manana') {
                         setStartTime('07:00');
-                        setEndTime('09:00');
-                      } else if (f.id === 'tarde') {
+                        setEndTime('13:00');
+                      } else if (f.id === 'siesta') {
                         setStartTime('13:00');
-                        setEndTime('18:00');
+                        setEndTime('16:00');
+                      } else if (f.id === 'tarde') {
+                        setStartTime('16:00');
+                        setEndTime('19:00');
                       } else if (f.id === 'noche') {
-                        setStartTime('18:00');
+                        setStartTime('19:00');
                         setEndTime('21:00');
                       }
                     }
                   }}
-                  className={`py-2 rounded-xl font-bold border transition-all text-center ${
+                  className={`py-2 px-1 rounded-xl font-bold border transition-all text-center text-[11px] leading-tight ${
                     franja === f.id
                       ? 'bg-malon-sand/20 border-malon-sand text-malon-sand shadow-sm'
                       : 'bg-malon-surface/40 border-malon-surface text-malon-muted hover:text-white'
