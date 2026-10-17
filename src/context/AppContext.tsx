@@ -21,16 +21,12 @@ import {
   INITIAL_NOTIFICATIONS,
 } from '../lib/initialData';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { calculateDurationHours } from '../lib/hoursAudit';
+import { calculateDurationHours, getFranjaFromTime } from '../lib/hoursAudit';
 import { sendBrowserNotification } from '../lib/notifications';
 
 interface AppContextType {
   currentCoach: StaffMember;
   setCurrentCoach: (coach: StaffMember) => void;
-  hasSelectedProfile: boolean;
-  setHasSelectedProfile: (hasSelected: boolean) => void;
-  loginCoach: (coach: StaffMember, rememberDevice?: boolean) => void;
-  logoutCoach: () => void;
   staff: StaffMember[];
   shifts: Shift[];
   saturdayGuards: SaturdayGuard[];
@@ -108,11 +104,6 @@ const MASTER_PIN = import.meta.env.VITE_ADMIN_MASTER_PIN || '1234';
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [staff] = useState<StaffMember[]>(INITIAL_STAFF);
   
-  const [hasSelectedProfile, setHasSelectedProfile] = useState<boolean>(() => {
-    const savedId = localStorage.getItem('malon_current_coach_id');
-    return Boolean(savedId && INITIAL_STAFF.some(s => s.id === savedId));
-  });
-
   const [currentCoach, setCurrentCoachState] = useState<StaffMember>(() => {
     const savedId = localStorage.getItem('malon_current_coach_id');
     const found = INITIAL_STAFF.find(s => s.id === savedId);
@@ -133,6 +124,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isGuardModalOpen, setIsGuardModalOpen] = useState<boolean>(false);
   const [isAuditModalOpen, setIsAuditModalOpen] = useState<boolean>(false);
 
+  const normalizeShift = (s: Shift): Shift => ({
+    ...s,
+    franja: s.day_of_week === 6 ? 'sabado' : getFranjaFromTime(s.start_time),
+  });
+
   const [shifts, setShifts] = useState<Shift[]>(() => {
     const version = localStorage.getItem('malon_data_version');
     if (version !== 'v3_production') {
@@ -140,10 +136,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem('malon_shifts', JSON.stringify(INITIAL_SHIFTS));
       localStorage.setItem('malon_saturday_guards', JSON.stringify(INITIAL_SATURDAY_GUARDS));
       localStorage.setItem('malon_shift_changes', JSON.stringify([]));
-      return INITIAL_SHIFTS;
+      return INITIAL_SHIFTS.map(normalizeShift);
     }
     const local = localStorage.getItem('malon_shifts');
-    return local ? JSON.parse(local) : INITIAL_SHIFTS;
+    const loaded: Shift[] = local ? JSON.parse(local) : INITIAL_SHIFTS;
+    return loaded.map(normalizeShift);
   });
 
   const [saturdayGuards, setSaturdayGuards] = useState<SaturdayGuard[]>(() => {
@@ -222,35 +219,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  const loginCoach = (coach: StaffMember, rememberDevice: boolean = true) => {
-    setCurrentCoachState(coach);
-    if (rememberDevice) {
-      localStorage.setItem('malon_current_coach_id', coach.id);
-      localStorage.setItem('malon_remember_device', 'true');
-    } else {
-      localStorage.removeItem('malon_current_coach_id');
-      localStorage.setItem('malon_remember_device', 'false');
-    }
-    if (coach.role !== 'admin' && coach.role !== 'coach_admin') {
-      setIsAdminUnlocked(false);
-    }
-    setHasSelectedProfile(true);
-  };
-
-  const logoutCoach = () => {
-    localStorage.removeItem('malon_current_coach_id');
-    localStorage.removeItem('malon_remember_device');
-    setIsAdminUnlocked(false);
-    setHasSelectedProfile(false);
-    setIsCoachPickerOpen(false);
-  };
-
   const setCurrentCoach = (coach: StaffMember) => {
     setCurrentCoachState(coach);
-    const remember = localStorage.getItem('malon_remember_device');
-    if (remember !== 'false') {
-      localStorage.setItem('malon_current_coach_id', coach.id);
-    }
+    localStorage.setItem('malon_current_coach_id', coach.id);
     // Si el nuevo perfil seleccionado no es admin ni coach_admin, bloquear modo jefe
     if (coach.role !== 'admin' && coach.role !== 'coach_admin') {
       setIsAdminUnlocked(false);
@@ -441,10 +412,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const newShifts: Shift[] = [];
     const baseId1 = data.existingShiftIds[0] || `shift-${Date.now()}`;
+    const calculatedFranja = data.day_of_week === 6 ? 'sabado' : (data.franja || getFranjaFromTime(data.start_time));
     newShifts.push({
       id: baseId1,
       day_of_week: data.day_of_week,
-      franja: data.franja,
+      franja: calculatedFranja,
       start_time: data.start_time,
       end_time: data.end_time,
       duration_hours: duration,
@@ -460,7 +432,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       newShifts.push({
         id: baseId2,
         day_of_week: data.day_of_week,
-        franja: data.franja,
+        franja: calculatedFranja,
         start_time: data.start_time,
         end_time: data.end_time,
         duration_hours: duration,
@@ -646,10 +618,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         currentCoach,
         setCurrentCoach,
-        hasSelectedProfile,
-        setHasSelectedProfile,
-        loginCoach,
-        logoutCoach,
         staff,
         shifts,
         saturdayGuards,

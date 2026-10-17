@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import type { Shift, SaturdayGuard, HolidaySchedule } from '../../types';
 import { getMonthlyGuards, MONTH_NAMES } from '../../lib/guardRotation';
+import { getFranjaFromTime } from '../../lib/hoursAudit';
 
 const DAYS = [
   { id: 1, name: 'Lunes', short: 'Lun' },
@@ -93,16 +94,10 @@ export const General: React.FC = () => {
 
   const dayShifts = shifts.filter(s => s.day_of_week === selectedDay);
 
-  const mananaShifts = dayShifts.filter(s => s.franja === 'manana' || s.start_time < '13:00');
-  const siestaShifts = dayShifts.filter(
-    s => s.franja === 'siesta' || (s.start_time >= '13:00' && s.start_time < '16:00')
-  );
-  const tardeShifts = dayShifts.filter(
-    s =>
-      s.start_time >= '16:00' &&
-      s.start_time < '19:00'
-  );
-  const nocheShifts = dayShifts.filter(s => s.franja === 'noche' || s.start_time >= '19:00');
+  const mananaShifts = dayShifts.filter(s => getFranjaFromTime(s.start_time) === 'manana');
+  const siestaShifts = dayShifts.filter(s => getFranjaFromTime(s.start_time) === 'siesta');
+  const tardeShifts = dayShifts.filter(s => getFranjaFromTime(s.start_time) === 'tarde');
+  const nocheShifts = dayShifts.filter(s => getFranjaFromTime(s.start_time) === 'noche');
 
   const groupDoubleShifts = (shiftList: Shift[]) => {
     const renderedIds = new Set<string>();

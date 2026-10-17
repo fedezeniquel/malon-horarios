@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Clock, Calendar, ArrowLeftRight, Users, CheckCircle2, FileSpreadsheet, Hourglass } from 'lucide-react';
 import { getMonthlyGuards, MONTH_NAMES } from '../../lib/guardRotation';
-import { calculateCoachMonthlyHours } from '../../lib/hoursAudit';
+import { calculateCoachMonthlyHours, getFranjaFromTime } from '../../lib/hoursAudit';
 
 const DAYS_OF_WEEK = [
   { id: 1, name: 'Lun', fullName: 'Lunes' },
@@ -260,17 +260,22 @@ export const MiGrilla: React.FC = () => {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <span
-                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                        shift.franja === 'manana'
-                          ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                          : shift.franja === 'tarde'
-                          ? 'bg-orange-500/10 text-orange-400 border-orange-500/30'
-                          : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30'
-                      }`}
-                    >
-                      Turno {shift.franja}
-                    </span>
+                    {(() => {
+                      const effectiveFranja = shift.day_of_week === 6 ? 'sabado' : getFranjaFromTime(shift.start_time);
+                      const badgeConfig = {
+                        manana: { label: 'Turno Mañana', style: 'bg-amber-500/10 text-amber-400 border-amber-500/30' },
+                        siesta: { label: 'Turno Siesta', style: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
+                        tarde: { label: 'Turno Tarde', style: 'bg-orange-500/10 text-orange-400 border-orange-500/30' },
+                        noche: { label: 'Turno Noche', style: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30' },
+                        sabado: { label: 'Guardia Sábado', style: 'bg-malon-sand/20 text-malon-sand border-malon-sand/30' },
+                      }[effectiveFranja] || { label: `Turno ${effectiveFranja}`, style: 'bg-malon-surface text-malon-muted border-malon-surface' };
+
+                      return (
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${badgeConfig.style}`}>
+                          {badgeConfig.label}
+                        </span>
+                      );
+                    })()}
 
                     {shift.is_double_coverage && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30 flex items-center space-x-1">
