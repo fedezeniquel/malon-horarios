@@ -5,6 +5,7 @@ import type {
   SaturdayGuard,
   ShiftChangeRequest,
   ShiftChangeType,
+  ShiftChangeStatus,
   ShiftCompensationType,
   Franja,
   HolidaySchedule,
@@ -199,22 +200,242 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('malon_notifications', JSON.stringify(notifications));
   }, [notifications]);
 
+  // ==============================================================================
+  // MAPEOS: BASE DE DATOS SUPABASE (EN ESPAÑOL) <-> MODELOS DE LA APLICACIÓN
+  // ==============================================================================
+  const mapDbToShift = (row: any): Shift => ({
+    id: row.id,
+    day_of_week: Number(row.dia_semana ?? row.day_of_week),
+    start_time: row.hora_inicio ?? row.start_time,
+    end_time: row.hora_fin ?? row.end_time,
+    duration_hours: Number(row.duracion_horas ?? row.duration_hours) || 1,
+    franja: (row.franja as Franja) || 'manana',
+    coach_id: row.coach_id,
+    coach_name: row.coach_nombre ?? row.coach_name ?? '',
+    is_double_coverage: Boolean(row.es_dupla ?? row.is_double_coverage),
+    partner_name: row.companero_nombre ?? row.partner_name ?? undefined,
+    notes: row.notas ?? row.notes ?? undefined,
+  });
+
+  const mapShiftToDb = (s: Shift) => ({
+    id: s.id,
+    dia_semana: s.day_of_week,
+    hora_inicio: s.start_time,
+    hora_fin: s.end_time,
+    duracion_horas: s.duration_hours,
+    franja: s.franja,
+    coach_id: s.coach_id,
+    coach_nombre: s.coach_name,
+    es_dupla: s.is_double_coverage,
+    companero_nombre: s.partner_name || null,
+    notas: s.notes || null,
+    actualizado_el: new Date().toISOString(),
+  });
+
+  const mapDbToShiftChange = (row: any): ShiftChangeRequest => ({
+    id: row.id,
+    created_at: row.creado_el ?? row.created_at ?? new Date().toISOString(),
+    target_date: row.fecha_turno ?? row.target_date,
+    day_name: row.nombre_dia ?? row.day_name,
+    requester_id: row.solicitante_id ?? row.requester_id,
+    requester_name: row.solicitante_nombre ?? row.requester_name,
+    start_time: row.hora_inicio ?? row.start_time,
+    end_time: row.hora_fin ?? row.end_time,
+    type: (row.tipo ?? row.type) as ShiftChangeType,
+    franja: (row.franja ?? row.franja) as Franja,
+    reason: row.motivo ?? row.reason ?? '',
+    status: (row.estado ?? row.status) as ShiftChangeStatus,
+    claimed_by_id: row.tomado_por_id ?? row.claimed_by_id ?? undefined,
+    claimed_by_name: row.tomado_por_nombre ?? row.claimed_by_name ?? undefined,
+    claimed_at: row.tomado_el ?? row.claimed_at ?? undefined,
+    confirmed_at: row.confirmado_el ?? row.confirmed_at ?? undefined,
+    compensation_type: (row.tipo_compensacion ?? row.compensation_type) as ShiftCompensationType | undefined,
+  });
+
+  const mapShiftChangeToDb = (c: ShiftChangeRequest) => ({
+    id: c.id,
+    creado_el: c.created_at,
+    fecha_turno: c.target_date,
+    nombre_dia: c.day_name,
+    solicitante_id: c.requester_id,
+    solicitante_nombre: c.requester_name,
+    hora_inicio: c.start_time,
+    hora_fin: c.end_time,
+    tipo: c.type,
+    franja: c.franja,
+    motivo: c.reason || null,
+    estado: c.status,
+    tomado_por_id: c.claimed_by_id || null,
+    tomado_por_nombre: c.claimed_by_name || null,
+    tomado_el: c.claimed_at || null,
+    confirmado_el: c.confirmed_at || null,
+    tipo_compensacion: c.compensation_type || null,
+    actualizado_el: new Date().toISOString(),
+  });
+
+  const mapDbToSaturdayGuard = (row: any): SaturdayGuard => ({
+    id: row.id,
+    date: row.fecha ?? row.date,
+    coach_id: row.coach_id,
+    coach_name: row.coach_nombre ?? row.coach_name,
+    start_time: row.hora_inicio ?? row.start_time,
+    end_time: row.hora_fin ?? row.end_time,
+    status: (row.estado ?? row.status) || 'scheduled',
+    replacement_coach_name: row.nombre_reemplazo ?? row.replacement_coach_name ?? undefined,
+  });
+
+  const mapSaturdayGuardToDb = (g: SaturdayGuard) => ({
+    id: g.id,
+    fecha: g.date,
+    coach_id: g.coach_id,
+    coach_nombre: g.coach_name,
+    hora_inicio: g.start_time,
+    hora_fin: g.end_time,
+    estado: g.status,
+    nombre_reemplazo: g.replacement_coach_name || null,
+    actualizado_el: new Date().toISOString(),
+  });
+
+  const mapDbToHoliday = (row: any): HolidaySchedule => ({
+    id: row.id,
+    date: row.fecha ?? row.date,
+    name: row.nombre ?? row.name,
+    is_closed: Boolean(row.esta_cerrado ?? row.is_closed),
+    selected_hours: row.horas_seleccionadas ?? row.selected_hours ?? [],
+    time_display: row.horario_texto ?? row.time_display ?? '',
+    total_hours: Number(row.total_horas ?? row.total_hours) || 0,
+    coach_id_1: row.coach_id_1 ?? '',
+    coach_name_1: row.coach_nombre_1 ?? row.coach_name_1 ?? '',
+    coach_id_2: row.coach_id_2 ?? '',
+    coach_name_2: row.coach_nombre_2 ?? row.coach_name_2 ?? '',
+    slots: row.bloques ?? row.slots ?? [],
+    notes: row.notas ?? row.notes ?? undefined,
+  });
+
+  const mapHolidayToDb = (h: HolidaySchedule) => ({
+    id: h.id,
+    fecha: h.date,
+    nombre: h.name,
+    esta_cerrado: h.is_closed,
+    horas_seleccionadas: h.selected_hours || [],
+    horario_texto: h.time_display,
+    total_horas: h.total_hours || 0,
+    coach_id_1: h.coach_id_1,
+    coach_nombre_1: h.coach_name_1,
+    coach_id_2: h.coach_id_2,
+    coach_nombre_2: h.coach_name_2,
+    bloques: h.slots || [],
+    notas: h.notes || null,
+    actualizado_el: new Date().toISOString(),
+  });
+
   useEffect(() => {
     const client = supabase;
     if (!isSupabaseConfigured || !client) return;
 
-    const channel = client
-      .channel('schema-db-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'shift_changes' },
-        (payload) => {
-          console.log('Realtime shift_changes update:', payload);
+    let isMounted = true;
+
+    // Cargar datos centralizados desde Supabase al iniciar (tablas en español)
+    const fetchCloudData = async () => {
+      try {
+        // 1. Turnos
+        const { data: dbTurnos, error: turnosErr } = await client.from('turnos').select('*');
+        if (!turnosErr && dbTurnos && isMounted) {
+          if (dbTurnos.length > 0) {
+            setShifts(dbTurnos.map(mapDbToShift));
+          } else {
+            // Inicializar base de datos con los turnos base
+            await client.from('turnos').upsert(INITIAL_SHIFTS.map(mapShiftToDb));
+          }
         }
-      )
+
+        // 2. Guardias de Sábado
+        const { data: dbGuards, error: guardsErr } = await client.from('guardias_sabado').select('*');
+        if (!guardsErr && dbGuards && isMounted) {
+          if (dbGuards.length > 0) {
+            setSaturdayGuards(dbGuards.map(mapDbToSaturdayGuard));
+          } else {
+            await client.from('guardias_sabado').upsert(INITIAL_SATURDAY_GUARDS.map(mapSaturdayGuardToDb));
+          }
+        }
+
+        // 3. Cambios de Turno (Bolsa)
+        const { data: dbChanges, error: changesErr } = await client.from('cambios_turno').select('*');
+        if (!changesErr && dbChanges && isMounted) {
+          setShiftChanges(dbChanges.map(mapDbToShiftChange));
+        }
+
+        // 4. Feriados
+        const { data: dbFeriados, error: feriadosErr } = await client.from('feriados').select('*');
+        if (!feriadosErr && dbFeriados && isMounted) {
+          if (dbFeriados.length > 0) {
+            setHolidays(dbFeriados.map(mapDbToHoliday));
+          } else {
+            await client.from('feriados').upsert(INITIAL_HOLIDAYS.map(mapHolidayToDb));
+          }
+        }
+      } catch (err) {
+        console.warn('Conexión a Supabase en espera o sin tablas creadas aún:', err);
+      }
+    };
+
+    fetchCloudData();
+
+    // Suscripción Realtime a cambios de cualquier dispositivo (tablas en español)
+    const channel = client
+      .channel('malon-cloud-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'turnos' }, payload => {
+        if (!isMounted) return;
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const updated = mapDbToShift(payload.new);
+          setShifts(prev => {
+            const exists = prev.some(s => s.id === updated.id);
+            return exists ? prev.map(s => (s.id === updated.id ? updated : s)) : [...prev, updated];
+          });
+        } else if (payload.eventType === 'DELETE' && payload.old) {
+          setShifts(prev => prev.filter(s => s.id !== (payload.old as { id: string }).id));
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'cambios_turno' }, payload => {
+        if (!isMounted) return;
+        if (payload.eventType === 'INSERT') {
+          const newItem = mapDbToShiftChange(payload.new);
+          setShiftChanges(prev => (prev.some(c => c.id === newItem.id) ? prev : [newItem, ...prev]));
+        } else if (payload.eventType === 'UPDATE') {
+          const updated = mapDbToShiftChange(payload.new);
+          setShiftChanges(prev => prev.map(c => (c.id === updated.id ? updated : c)));
+        } else if (payload.eventType === 'DELETE' && payload.old) {
+          setShiftChanges(prev => prev.filter(c => c.id !== (payload.old as { id: string }).id));
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'guardias_sabado' }, payload => {
+        if (!isMounted) return;
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const updated = mapDbToSaturdayGuard(payload.new);
+          setSaturdayGuards(prev => {
+            const exists = prev.some(g => g.id === updated.id);
+            return exists ? prev.map(g => (g.id === updated.id ? updated : g)) : [...prev, updated];
+          });
+        } else if (payload.eventType === 'DELETE' && payload.old) {
+          setSaturdayGuards(prev => prev.filter(g => g.id !== (payload.old as { id: string }).id));
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'feriados' }, payload => {
+        if (!isMounted) return;
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const updated = mapDbToHoliday(payload.new);
+          setHolidays(prev => {
+            const exists = prev.some(h => h.id === updated.id);
+            return exists ? prev.map(h => (h.id === updated.id ? updated : h)) : [...prev, updated];
+          });
+        } else if (payload.eventType === 'DELETE' && payload.old) {
+          setHolidays(prev => prev.filter(h => h.id !== (payload.old as { id: string }).id));
+        }
+      })
       .subscribe();
 
     return () => {
+      isMounted = false;
       client.removeChannel(channel);
     };
   }, []);
@@ -302,6 +523,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setShiftChanges(prev => [newRequest, ...prev]);
 
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('cambios_turno').insert(mapShiftChangeToDb(newRequest)).then(({ error }) => {
+        if (error) console.error('Error sincronizando createShiftChange en Supabase:', error);
+      });
+    }
+
     // Aviso 1: Notificar cuando alguien pide un cambio
     addNotification({
       type: 'shift_change_request',
@@ -313,21 +540,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const claimShiftChange = (requestId: string) => {
     const targetChange = shiftChanges.find(item => item.id === requestId);
+    const claimedData = {
+      status: 'claimed' as const,
+      claimed_by_id: currentCoach.id,
+      claimed_by_name: currentCoach.name,
+      claimed_at: new Date().toISOString(),
+    };
 
     setShiftChanges(prev =>
       prev.map(item => {
         if (item.id === requestId) {
           return {
             ...item,
-            status: 'claimed',
-            claimed_by_id: currentCoach.id,
-            claimed_by_name: currentCoach.name,
-            claimed_at: new Date().toISOString(),
+            ...claimedData,
           };
         }
         return item;
       })
     );
+
+    if (isSupabaseConfigured && supabase) {
+      const dbClaimData = {
+        estado: 'claimed',
+        tomado_por_id: currentCoach.id,
+        tomado_por_nombre: currentCoach.name,
+        tomado_el: claimedData.claimed_at,
+        actualizado_el: new Date().toISOString(),
+      };
+      supabase.from('cambios_turno').update(dbClaimData).eq('id', requestId).then(({ error }) => {
+        if (error) console.error('Error sincronizando claimShiftChange en Supabase:', error);
+      });
+    }
 
     // Aviso 1: Notificar cuando el cambio ya fue tomado
     if (targetChange) {
@@ -342,20 +585,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const confirmShiftChange = (requestId: string, compensationType: ShiftCompensationType = 'work') => {
     const targetChange = shiftChanges.find(item => item.id === requestId);
+    const confirmedData = {
+      status: 'confirmed' as const,
+      confirmed_at: new Date().toISOString(),
+      compensation_type: compensationType,
+    };
 
     setShiftChanges(prev =>
       prev.map(item => {
         if (item.id === requestId) {
           return {
             ...item,
-            status: 'confirmed',
-            confirmed_at: new Date().toISOString(),
-            compensation_type: compensationType,
+            ...confirmedData,
           };
         }
         return item;
       })
     );
+
+    if (isSupabaseConfigured && supabase) {
+      const dbConfirmData = {
+        estado: 'confirmed',
+        confirmado_el: confirmedData.confirmed_at,
+        tipo_compensacion: compensationType,
+        actualizado_el: new Date().toISOString(),
+      };
+      supabase.from('cambios_turno').update(dbConfirmData).eq('id', requestId).then(({ error }) => {
+        if (error) console.error('Error sincronizando confirmShiftChange en Supabase:', error);
+      });
+    }
 
     // Notificar al coach que tomó el reemplazo sobre la confirmación y la modalidad acordada
     if (targetChange && targetChange.claimed_by_id) {
@@ -386,11 +644,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return item;
       })
     );
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('cambios_turno').update({ estado: 'cancelled', actualizado_el: new Date().toISOString() }).eq('id', requestId).then(({ error }) => {
+        if (error) console.error('Error sincronizando cancelShiftChange en Supabase:', error);
+      });
+    }
   };
 
   // Funciones de administración de turnos de la grilla
   const updateShift = (updatedShift: Shift) => {
     setShifts(prev => prev.map(s => (s.id === updatedShift.id ? updatedShift : s)));
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('turnos').upsert(mapShiftToDb(updatedShift)).then(({ error }) => {
+        if (error) console.error('Error sincronizando updateShift en Supabase:', error);
+      });
+    }
   };
 
   const addShift = (newShiftData: Omit<Shift, 'id'>) => {
@@ -399,10 +668,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `shift-${Date.now()}`,
     };
     setShifts(prev => [...prev, newShift]);
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('turnos').insert(mapShiftToDb(newShift)).then(({ error }) => {
+        if (error) console.error('Error sincronizando addShift en Supabase:', error);
+      });
+    }
   };
 
   const deleteShift = (shiftId: string) => {
     setShifts(prev => prev.filter(s => s.id !== shiftId));
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('turnos').delete().eq('id', shiftId).then(({ error }) => {
+        if (error) console.error('Error sincronizando deleteShift en Supabase:', error);
+      });
+    }
   };
 
   // Funciones de administración de bloques de cobertura
@@ -448,11 +727,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const remaining = prev.filter(s => !idsToRemove.has(s.id));
       return [...remaining, ...newShifts];
     });
+
+    if (isSupabaseConfigured && supabase) {
+      if (idsToRemove.size > 0) {
+        supabase.from('turnos').delete().in('id', Array.from(idsToRemove)).then(({ error }) => {
+          if (error) console.error('Error eliminando turnos anteriores en Supabase:', error);
+        });
+      }
+      supabase.from('turnos').upsert(newShifts.map(mapShiftToDb)).then(({ error }) => {
+        if (error) console.error('Error sincronizando saveShiftBlock en Supabase:', error);
+      });
+    }
   };
 
   const deleteShiftBlock = (shiftIds: string[]) => {
     const idsToRemove = new Set(shiftIds);
     setShifts(prev => prev.filter(s => !idsToRemove.has(s.id)));
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('turnos').delete().in('id', shiftIds).then(({ error }) => {
+        if (error) console.error('Error sincronizando deleteShiftBlock en Supabase:', error);
+      });
+    }
   };
 
   // Funciones de administración de guardias de los sábados
@@ -462,16 +757,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `sg-${Date.now()}`,
     };
     setSaturdayGuards(prev => [...prev, newGuard].sort((a, b) => a.date.localeCompare(b.date)));
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('guardias_sabado').insert(mapSaturdayGuardToDb(newGuard)).then(({ error }) => {
+        if (error) console.error('Error sincronizando addSaturdayGuard en Supabase:', error);
+      });
+    }
   };
 
   const updateSaturdayGuard = (guard: SaturdayGuard) => {
     setSaturdayGuards(prev =>
       prev.map(g => (g.id === guard.id ? guard : g)).sort((a, b) => a.date.localeCompare(b.date))
     );
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('guardias_sabado').upsert(mapSaturdayGuardToDb(guard)).then(({ error }) => {
+        if (error) console.error('Error sincronizando updateSaturdayGuard en Supabase:', error);
+      });
+    }
   };
 
   const deleteSaturdayGuard = (guardId: string) => {
     setSaturdayGuards(prev => prev.filter(g => g.id !== guardId));
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('guardias_sabado').delete().eq('id', guardId).then(({ error }) => {
+        if (error) console.error('Error sincronizando deleteSaturdayGuard en Supabase:', error);
+      });
+    }
   };
 
   // Funciones de administración de feriados
@@ -481,6 +791,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `hol-${Date.now()}`,
     };
     setHolidays(prev => [...prev, newHoliday].sort((a, b) => a.date.localeCompare(b.date)));
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('feriados').insert(mapHolidayToDb(newHoliday)).then(({ error }) => {
+        if (error) console.error('Error sincronizando addHoliday en Supabase:', error);
+      });
+    }
 
     // Aviso 3: Notificación de asignación de turno de feriado
     if (!newHoliday.is_closed) {
@@ -512,6 +828,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       prev.map(h => (h.id === holiday.id ? holiday : h)).sort((a, b) => a.date.localeCompare(b.date))
     );
 
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('feriados').upsert(mapHolidayToDb(holiday)).then(({ error }) => {
+        if (error) console.error('Error sincronizando updateHoliday en Supabase:', error);
+      });
+    }
+
     // Aviso 3: Notificación de actualización / reasignación de turno de feriado
     if (!holiday.is_closed) {
       const assignedCoachNames = new Set<string>();
@@ -539,6 +861,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteHoliday = (holidayId: string) => {
     setHolidays(prev => prev.filter(h => h.id !== holidayId));
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('feriados').delete().eq('id', holidayId).then(({ error }) => {
+        if (error) console.error('Error sincronizando deleteHoliday en Supabase:', error);
+      });
+    }
   };
 
   // Verificación periódica de recordatorios necesarios (Sábado asignado y Feriado próximo)
