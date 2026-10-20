@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Clock, Calendar, ArrowLeftRight, Users, CheckCircle2, FileSpreadsheet, Hourglass } from 'lucide-react';
+import { Clock, Calendar, ArrowLeftRight, Users, CheckCircle2, FileSpreadsheet, Hourglass, Handshake } from 'lucide-react';
 import { getMonthlyGuards, MONTH_NAMES } from '../../lib/guardRotation';
 import { calculateCoachMonthlyHours, getFranjaFromTime } from '../../lib/hoursAudit';
+import { getCoachEffectiveShifts } from '../../lib/effectiveShifts';
 
 const DAYS_OF_WEEK = [
   { id: 1, name: 'Lun', fullName: 'Lunes' },
@@ -59,7 +60,12 @@ export const MiGrilla: React.FC = () => {
     return h.coach_id_1 === currentCoach.id || h.coach_id_2 === currentCoach.id;
   });
 
-  const selectedDayShifts = myShifts.filter(s => s.day_of_week === selectedDay);
+  const selectedDayShifts = getCoachEffectiveShifts(
+    currentCoach.id,
+    selectedDay,
+    shifts,
+    shiftChanges
+  );
 
   return (
     <div className="space-y-5 pb-20">
@@ -172,7 +178,10 @@ export const MiGrilla: React.FC = () => {
 
         <div className="grid grid-cols-6 gap-1.5">
           {DAYS_OF_WEEK.map(d => {
-            const hasShift = myShifts.some(s => s.day_of_week === d.id);
+            const dayEffective = getCoachEffectiveShifts(currentCoach.id, d.id, shifts, shiftChanges);
+            const hasShift = dayEffective.length > 0;
+            const hasCovering = dayEffective.some(s => s.is_covering);
+            const hasReplaced = dayEffective.some(s => s.is_replaced);
             const isSelected = selectedDay === d.id;
 
             return (
@@ -188,7 +197,11 @@ export const MiGrilla: React.FC = () => {
                 <span className="text-xs font-bold leading-none">{d.name}</span>
                 <span className="text-[10px] mt-1 leading-none">
                   {hasShift ? (
-                    <span className="w-1.5 h-1.5 rounded-full bg-malon-sand inline-block" />
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full inline-block ${
+                        hasCovering ? 'bg-cyan-400' : hasReplaced ? 'bg-emerald-400' : 'bg-malon-sand'
+                      }`}
+                    />
                   ) : (
                     <span className="text-malon-surface">-</span>
                   )}
@@ -253,79 +266,176 @@ export const MiGrilla: React.FC = () => {
           </div>
         ) : selectedDayShifts.length > 0 ? (
           <div className="space-y-2.5">
-            {selectedDayShifts.map(shift => (
-              <div
-                key={shift.id}
-                className="bg-malon-card border border-malon-surface rounded-2xl p-4 transition-all hover:border-malon-sand/50 space-y-3"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    {(() => {
-                      const effectiveFranja = shift.day_of_week === 6 ? 'sabado' : getFranjaFromTime(shift.start_time);
-                      const badgeConfig = {
-                        manana: { label: 'Turno Mañana', style: 'bg-amber-500/10 text-amber-400 border-amber-500/30' },
-                        siesta: { label: 'Turno Siesta', style: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
-                        tarde: { label: 'Turno Tarde', style: 'bg-orange-500/10 text-orange-400 border-orange-500/30' },
-                        noche: { label: 'Turno Noche', style: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30' },
-                        sabado: { label: 'Guardia Sábado', style: 'bg-malon-sand/20 text-malon-sand border-malon-sand/30' },
-                      }[effectiveFranja] || { label: `Turno ${effectiveFranja}`, style: 'bg-malon-surface text-malon-muted border-malon-surface' };
+            {selectedDayShifts.map(shift => {
+              const isReplaced = shift.is_replaced;
+              const isCovering = shift.is_covering;
+              const hasOpenChange = shift.change_status === 'open';
+              const hasClaimedChange = shift.change_status === 'claimed';
 
-                      return (
-                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${badgeConfig.style}`}>
-                          {badgeConfig.label}
+              return (
+                <div
+                  key={shift.id}
+                  className={`bg-malon-card border rounded-2xl p-4 transition-all space-y-3 ${
+                    isCovering
+                      ? 'border-cyan-500/40 bg-gradient-to-r from-malon-card to-cyan-950/20 shadow-sm'
+                      : isReplaced
+                      ? 'border-emerald-500/30 bg-gradient-to-r from-malon-card to-emerald-950/20'
+                      : 'border-malon-surface hover:border-malon-sand/50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                      {(() => {
+                        const effectiveFranja = shift.day_of_week === 6 ? 'sabado' : getFranjaFromTime(shift.start_time);
+                        const badgeConfig = {
+                          manana: { label: 'Turno Mañana', style: 'bg-amber-500/10 text-amber-400 border-amber-500/30' },
+                          siesta: { label: 'Turno Siesta', style: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30' },
+                          tarde: { label: 'Turno Tarde', style: 'bg-orange-500/10 text-orange-400 border-orange-500/30' },
+                          noche: { label: 'Turno Noche', style: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30' },
+                          sabado: { label: 'Guardia Sábado', style: 'bg-malon-sand/20 text-malon-sand border-malon-sand/30' },
+                        }[effectiveFranja] || { label: `Turno ${effectiveFranja}`, style: 'bg-malon-surface text-malon-muted border-malon-surface' };
+
+                        return (
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${badgeConfig.style}`}>
+                            {badgeConfig.label}
+                          </span>
+                        );
+                      })()}
+
+                      {isCovering && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center space-x-1">
+                          <Handshake className="w-3 h-3" />
+                          <span>Cubriendo a {shift.covered_coach_name}</span>
                         </span>
-                      );
-                    })()}
+                      )}
 
-                    {shift.is_double_coverage && (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30 flex items-center space-x-1">
-                        <Users className="w-3 h-3" />
-                        <span>Doble Cobertura</span>
+                      {isReplaced && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center space-x-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Cubre {shift.replacement_coach_name}</span>
+                        </span>
+                      )}
+
+                      {!isCovering && !isReplaced && hasOpenChange && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center space-x-1">
+                          <Hourglass className="w-3 h-3" />
+                          <span>En Bolsa de Cambios</span>
+                        </span>
+                      )}
+
+                      {!isCovering && !isReplaced && hasClaimedChange && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center space-x-1">
+                          <Handshake className="w-3 h-3" />
+                          <span>Tomado por {shift.replacement_coach_name}</span>
+                        </span>
+                      )}
+
+                      {shift.is_double_coverage && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30 flex items-center space-x-1">
+                          <Users className="w-3 h-3" />
+                          <span>Doble Cobertura</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <span className="text-sm font-black font-mono text-white">
+                      {shift.start_time} - {shift.end_time} hs
+                    </span>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-bold text-white flex items-center justify-between">
+                      <span>Sala de Entrenamiento</span>
+                      <span className="text-xs text-malon-muted font-normal">
+                        {shift.duration_hours} hs
                       </span>
+                    </h4>
+
+                    {/* Mensaje informativo de reemplazo tomado a favor */}
+                    {isCovering && (
+                      <div className="mt-2 p-2.5 rounded-xl bg-cyan-950/40 border border-cyan-500/30 flex items-center justify-between text-xs text-cyan-200">
+                        <span className="flex items-center space-x-1.5">
+                          <Handshake className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                          <span>Reemplazo confirmado: estás cubriendo a <strong>{shift.covered_coach_name}</strong> {shift.change_target_date ? `(${shift.change_target_date.split('-').slice(1).reverse().join('/')})` : ''}</span>
+                        </span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-cyan-500/20 px-2 py-0.5 rounded-full">
+                          Asignado
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Mensaje informativo de turno cedido */}
+                    {isReplaced && (
+                      <div className="mt-2 p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-200">
+                        <span className="flex items-center space-x-1.5">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                          <span>Reemplazo confirmado: <strong>{shift.replacement_coach_name}</strong> cubre este turno {shift.change_target_date ? `(${shift.change_target_date.split('-').slice(1).reverse().join('/')})` : ''}</span>
+                        </span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 px-2 py-0.5 rounded-full">
+                          Cubierto
+                        </span>
+                      </div>
+                    )}
+
+                    {shift.is_double_coverage && shift.partner_name && (
+                      <p className="text-xs text-malon-sand font-medium mt-1 flex items-center space-x-1">
+                        <span>Junto a:</span>
+                        <strong className="text-white underline decoration-malon-sand">
+                          {shift.partner_name}
+                        </strong>
+                      </p>
+                    )}
+                    {shift.notes && (
+                      <p className="text-xs text-malon-muted/80 mt-1">
+                        {shift.notes}
+                      </p>
                     )}
                   </div>
 
-                  <span className="text-sm font-black font-mono text-white">
-                    {shift.start_time} - {shift.end_time} hs
-                  </span>
-                </div>
-
-                <div>
-                  <h4 className="text-sm font-bold text-white flex items-center justify-between">
-                    <span>Sala de Entrenamiento</span>
-                    <span className="text-xs text-malon-muted font-normal">
-                      {shift.duration_hours} hs
+                  <div className="pt-2 border-t border-malon-surface flex items-center justify-between">
+                    <span className="text-[11px] text-malon-muted">
+                      {isCovering
+                        ? 'Cobertura de reemplazo'
+                        : isReplaced
+                        ? 'Turno cubierto por compañero'
+                        : shift.is_double_coverage
+                        ? 'Cobertura compartida'
+                        : 'Bloque individual'}
                     </span>
-                  </h4>
-                  {shift.is_double_coverage && shift.partner_name && (
-                    <p className="text-xs text-malon-sand font-medium mt-1 flex items-center space-x-1">
-                      <span>Junto a:</span>
-                      <strong className="text-white underline decoration-malon-sand">
-                        {shift.partner_name}
-                      </strong>
-                    </p>
-                  )}
-                  {shift.notes && (
-                    <p className="text-xs text-malon-muted/80 mt-1">
-                      {shift.notes}
-                    </p>
-                  )}
-                </div>
 
-                <div className="pt-2 border-t border-malon-surface flex items-center justify-between">
-                  <span className="text-[11px] text-malon-muted">
-                    {shift.is_double_coverage ? 'Cobertura compartida' : 'Bloque individual'}
-                  </span>
-                  <button
-                    onClick={() => setIsCreateChangeModalOpen(true)}
-                    className="text-xs text-malon-red hover:text-white hover:bg-malon-red/20 px-2.5 py-1 rounded-lg border border-malon-red/30 font-semibold transition-all flex items-center space-x-1"
-                  >
-                    <ArrowLeftRight className="w-3 h-3" />
-                    <span>Pedir reemplazo</span>
-                  </button>
+                    {isCovering ? (
+                      <span className="text-xs text-cyan-300 font-semibold flex items-center space-x-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>En tu cronograma</span>
+                      </span>
+                    ) : isReplaced ? (
+                      <span className="text-xs text-emerald-400 font-semibold flex items-center space-x-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Turno cubierto</span>
+                      </span>
+                    ) : hasOpenChange ? (
+                      <span className="text-xs text-amber-400 font-medium flex items-center space-x-1">
+                        <Hourglass className="w-3.5 h-3.5" />
+                        <span>Publicado en Bolsa</span>
+                      </span>
+                    ) : hasClaimedChange ? (
+                      <span className="text-xs text-amber-300 font-medium flex items-center space-x-1">
+                        <Handshake className="w-3.5 h-3.5" />
+                        <span>Tomado (Confirmar en Cambios)</span>
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => setIsCreateChangeModalOpen(true)}
+                        className="text-xs text-malon-red hover:text-white hover:bg-malon-red/20 px-2.5 py-1 rounded-lg border border-malon-red/30 font-semibold transition-all flex items-center space-x-1"
+                      >
+                        <ArrowLeftRight className="w-3 h-3" />
+                        <span>Pedir reemplazo</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="bg-malon-card/50 border border-dashed border-malon-surface rounded-2xl p-6 text-center">

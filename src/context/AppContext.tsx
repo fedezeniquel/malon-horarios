@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import type {
   StaffMember,
   Shift,
@@ -329,6 +329,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     actualizado_el: new Date().toISOString(),
   });
 
+  const mapDbToNotification = (row: any): AppNotification => ({
+    id: row.id,
+    type: (row.tipo ?? row.type) as AppNotification['type'],
+    title: row.titulo ?? row.title,
+    message: row.mensaje ?? row.message,
+    target_coach_id: row.para_coach_id ?? row.target_coach_id ?? undefined,
+    read: Boolean(row.leida ?? row.read),
+    link_tab: row.pestana_enlace ?? row.link_tab ?? undefined,
+    created_at: row.creado_el ?? row.created_at ?? new Date().toISOString(),
+  });
+
+  const mapNotificationToDb = (n: AppNotification) => ({
+    id: n.id,
+    tipo: n.type,
+    titulo: n.title,
+    mensaje: n.message,
+    para_coach_id: n.target_coach_id || null,
+    leida: n.read,
+    pestana_enlace: n.link_tab || null,
+    creado_el: n.created_at,
+  });
+
+  const currentCoachRef = useRef(currentCoach);
+  useEffect(() => {
+    currentCoachRef.current = currentCoach;
+  }, [currentCoach]);
+
   useEffect(() => {
     const client = supabase;
     if (!isSupabaseConfigured || !client) return;
@@ -373,6 +400,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           } else {
             await client.from('feriados').upsert(INITIAL_HOLIDAYS.map(mapHolidayToDb));
           }
+        }
+
+        // 5. Notificaciones centralizadas
+        const { data: dbNotifs, error: notifsErr } = await client
+          .from('notificaciones')
+          .select('*')
+          .order('creado_el', { ascending: false })
+          .limit(50);
+        if (!notifsErr && dbNotifs && isMounted && dbNotifs.length > 0) {
+          setNotifications(dbNotifs.map(mapDbToNotification));
         }
       } catch (err) {
         console.warn('Conexión a Supabase en espera o sin tablas creadas aún:', err);
@@ -432,6 +469,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setHolidays(prev => prev.filter(h => h.id !== (payload.old as { id: string }).id));
         }
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notificaciones' }, payload => {
+        if (!isMounted) return;
+        if (payload.eventType === 'INSERT') {
+          const newNotif = mapDbToNotification(payload.new);
+          setNotifications(prev => {
+            if (prev.some(n => n.id === newNotif.id)) return prev;
+            return [newNotif, ...prev];
+          });
+          // Notificación Push inmediata en el dispositivo si aplica al coach activo
+          if (!newNotif.target_coach_id || newNotif.target_coach_id === currentCoachRef.current.id) {
+            sendBrowserNotification(newNotif.title, {
+              body: newNotif.message,
+              tag: newNotif.id,
+            });
+          }
+        } else if (payload.eventType === 'UPDATE') {
+          const updated = mapDbToNotification(payload.new);
+          setNotifications(prev => prev.map(n => (n.id === updated.id ? updated : n)));
+        } else if (payload.eventType === 'DELETE' && payload.old) {
+          setNotifications(prev => prev.filter(n => n.id !== (payload.old as { id: string }).id));
+        }
+      })
       .subscribe();
 
     return () => {
@@ -487,20 +546,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         tag: newNotif.id,
       });
     }
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('notificaciones').insert(mapNotificationToDb(newNotif)).then(({ error }) => {
+        if (error) console.error('Error insertando notificacion en Supabase:', error);
+      });
+    }
   };
 
   const markNotificationAsRead = (id: string) => {
     setNotifications(prev =>
       prev.map(n => (n.id === id ? { ...n, read: true } : n))
     );
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('notificaciones').update({ leida: true }).eq('id', id).then();
+    }
   };
 
   const markAllNotificationsAsRead = () => {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('notificaciones').update({ leida: true }).neq('id', '').then();
+    }
   };
 
   const clearNotifications = () => {
     setNotifications([]);
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('notificaciones').delete().neq('id', '').then();
+    }
   };
 
   const createShiftChange = (data: {
@@ -529,7 +603,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     }
 
-    // Aviso 1: Notificar cuando alguien pide un cambio
+    // Aviso: Notificar a TODOS los coaches (sin target_coach_id para que sea visible por todo el staff)
     addNotification({
       type: 'shift_change_request',
       title: '🔄 Nuevo Pedido de Cambio',
@@ -572,12 +646,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     }
 
-    // Aviso 1: Notificar cuando el cambio ya fue tomado
+    // Aviso: Notificar al coach solicitante que su pedido fue tomado
     if (targetChange) {
       addNotification({
         type: 'shift_change_claimed',
         title: '✅ ¡Cambio Tomado!',
-        message: `${currentCoach.name} tomó el turno del ${targetChange.target_date} (${targetChange.start_time} a ${targetChange.end_time} hs) solicitado por ${targetChange.requester_name}.`,
+        message: `${currentCoach.name} tomó tu turno del ${targetChange.target_date} (${targetChange.start_time} a ${targetChange.end_time} hs). Ingresá a confirmar y acordar la modalidad.`,
+        target_coach_id: targetChange.requester_id,
         link_tab: 'cambios',
       });
     }
@@ -615,18 +690,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     }
 
-    // Notificar al coach que tomó el reemplazo sobre la confirmación y la modalidad acordada
     if (targetChange && targetChange.claimed_by_id) {
       const modeText =
         compensationType === 'work'
           ? 'Modalidad acordada: Devolver con horas de trabajo (mano a mano).'
           : 'Modalidad acordada: Pagar horas (se transfieren y computan en tu liquidación mensual).';
 
+      // 1. Notificar al coach que cubrió sobre la confirmación del cambio
       addNotification({
         type: 'shift_change_claimed',
         title: '🤝 ¡Cambio Confirmado!',
         message: `${targetChange.requester_name} confirmó el cambio del ${targetChange.target_date} (${targetChange.start_time} a ${targetChange.end_time} hs). ${modeText}`,
         target_coach_id: targetChange.claimed_by_id,
+        link_tab: 'cambios',
+      });
+
+      // 2. Posterior recordatorio de turno para el coach que cubre
+      addNotification({
+        type: 'shift_reminder',
+        title: '⏰ Recordatorio de Turno Asignado',
+        message: `Recordá que cubrís el turno del ${targetChange.day_name} ${targetChange.target_date.split('-').slice(1).reverse().join('/')} de ${targetChange.start_time} a ${targetChange.end_time} hs (Reemplazo a ${targetChange.requester_name}).`,
+        target_coach_id: targetChange.claimed_by_id,
+        link_tab: 'mi-grilla',
+      });
+
+      // 3. Confirmación / constancia para el coach solicitante
+      addNotification({
+        type: 'shift_reminder',
+        title: '✅ Turno Cubierto',
+        message: `Tu turno del ${targetChange.day_name} ${targetChange.target_date.split('-').slice(1).reverse().join('/')} (${targetChange.start_time} a ${targetChange.end_time} hs) está confirmado y cubierto por ${targetChange.claimed_by_name}.`,
+        target_coach_id: targetChange.requester_id,
         link_tab: 'cambios',
       });
     }

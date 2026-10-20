@@ -20,10 +20,12 @@ import {
   Calendar,
   Sparkles,
   Coffee,
+  Handshake,
 } from 'lucide-react';
-import type { Shift, SaturdayGuard, HolidaySchedule } from '../../types';
+import type { SaturdayGuard, HolidaySchedule } from '../../types';
 import { getMonthlyGuards, MONTH_NAMES } from '../../lib/guardRotation';
 import { getFranjaFromTime } from '../../lib/hoursAudit';
+import { getGeneralEffectiveShifts, type DisplayShift } from '../../lib/effectiveShifts';
 
 const DAYS = [
   { id: 1, name: 'Lunes', short: 'Lun' },
@@ -40,6 +42,7 @@ export const General: React.FC = () => {
     currentCoach,
     shifts,
     saturdayGuards,
+    shiftChanges,
     holidays,
     isAdminUnlocked,
     setIsPinModalOpen,
@@ -92,14 +95,14 @@ export const General: React.FC = () => {
     setGuardMonth(today.getMonth());
   };
 
-  const dayShifts = shifts.filter(s => s.day_of_week === selectedDay);
+  const dayShifts = getGeneralEffectiveShifts(selectedDay, shifts, shiftChanges);
 
   const mananaShifts = dayShifts.filter(s => getFranjaFromTime(s.start_time) === 'manana');
   const siestaShifts = dayShifts.filter(s => getFranjaFromTime(s.start_time) === 'siesta');
   const tardeShifts = dayShifts.filter(s => getFranjaFromTime(s.start_time) === 'tarde');
   const nocheShifts = dayShifts.filter(s => getFranjaFromTime(s.start_time) === 'noche');
 
-  const groupDoubleShifts = (shiftList: Shift[]) => {
+  const groupDoubleShifts = (shiftList: DisplayShift[]) => {
     const renderedIds = new Set<string>();
     const grouped: {
       isDouble: boolean;
@@ -107,7 +110,7 @@ export const General: React.FC = () => {
       startTime: string;
       endTime: string;
       notes?: string;
-      items: Shift[];
+      items: DisplayShift[];
     }[] = [];
 
     shiftList.forEach(shift => {
@@ -129,7 +132,7 @@ export const General: React.FC = () => {
             coaches: [shift.coach_name, partner.coach_name],
             startTime: shift.start_time,
             endTime: shift.end_time,
-            notes: shift.notes,
+            notes: shift.notes || partner.notes,
             items: [shift, partner],
           });
           return;
@@ -170,7 +173,7 @@ export const General: React.FC = () => {
     startTime: string;
     endTime: string;
     notes?: string;
-    items: Shift[];
+    items: DisplayShift[];
   }) => {
     const shift1 = block.items[0];
     const shift2 = block.items[1];
@@ -236,67 +239,97 @@ export const General: React.FC = () => {
       startTime: string;
       endTime: string;
       notes?: string;
-      items: Shift[];
+      items: DisplayShift[];
     },
     i: number
-  ) => (
-    <div
-      key={i}
-      className="p-3.5 rounded-2xl border transition-all bg-gradient-to-r from-malon-surface to-malon-surface/90 border-malon-sand/40 shadow-sm space-y-2.5"
-    >
-      <div className="flex items-center justify-between">
-        {/* HORARIO RESALTADO (TODOS LOS HORARIOS) */}
-        <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-malon-card border border-malon-sand/40 text-malon-sand font-mono font-bold text-xs shadow-sm">
-          <Clock className="w-3.5 h-3.5 text-malon-sand" />
-          <span>{block.startTime} - {block.endTime} hs</span>
-        </div>
+  ) => {
+    const hasReplacement = block.items.some(item => item.is_covering);
 
-        <div className="flex items-center space-x-2">
-          {block.isDouble ? (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30 flex items-center space-x-1">
-              <Users className="w-3 h-3" />
-              <span>DOBLE COBERTURA</span>
-            </span>
-          ) : (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30 flex items-center space-x-1">
-              <User className="w-3 h-3" />
-              <span>COBERTURA SIMPLE</span>
-            </span>
-          )}
-
-          {isAdminUnlocked && (
-            <button
-              onClick={() => handleEditBlock(block)}
-              className="p-1 rounded-md bg-malon-card hover:bg-malon-surface text-malon-sand hover:text-white border border-malon-surface transition-all"
-              title="Editar horario y asignación de coaches"
-            >
-              <Edit2 className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-        {block.coaches.map((cName, idx) => (
-          <div
-            key={idx}
-            className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-malon-card text-malon-sand border border-malon-sand/30 shadow-sm"
-          >
-            <div className="w-4 h-4 rounded-full bg-malon-sand/20 text-malon-sand flex items-center justify-center text-[9px] font-black">
-              {cName.slice(0, 2).toUpperCase()}
-            </div>
-            <span>{cName}</span>
+    return (
+      <div
+        key={i}
+        className={`p-3.5 rounded-2xl border transition-all shadow-sm space-y-2.5 ${
+          hasReplacement
+            ? 'bg-gradient-to-r from-malon-surface via-cyan-950/20 to-malon-surface border-cyan-500/40'
+            : 'bg-gradient-to-r from-malon-surface to-malon-surface/90 border-malon-sand/40'
+        }`}
+      >
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          {/* HORARIO RESALTADO (TODOS LOS HORARIOS) */}
+          <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-xl bg-malon-card border border-malon-sand/40 text-malon-sand font-mono font-bold text-xs shadow-sm">
+            <Clock className="w-3.5 h-3.5 text-malon-sand" />
+            <span>{block.startTime} - {block.endTime} hs</span>
           </div>
-        ))}
-      </div>
 
-      {block.notes && (
-        <p className="text-[11px] text-malon-muted mt-1">
-          {block.notes}
-        </p>
-      )}
-    </div>
-  );
+          <div className="flex items-center space-x-1.5 flex-wrap">
+            {hasReplacement && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center space-x-1">
+                <Handshake className="w-3 h-3" />
+                <span>REEMPLAZO</span>
+              </span>
+            )}
+
+            {block.isDouble ? (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30 flex items-center space-x-1">
+                <Users className="w-3 h-3" />
+                <span>DOBLE COBERTURA</span>
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30 flex items-center space-x-1">
+                <User className="w-3 h-3" />
+                <span>COBERTURA SIMPLE</span>
+              </span>
+            )}
+
+            {isAdminUnlocked && (
+              <button
+                onClick={() => handleEditBlock(block)}
+                className="p-1 rounded-md bg-malon-card hover:bg-malon-surface text-malon-sand hover:text-white border border-malon-surface transition-all"
+                title="Editar horario y asignación de coaches"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+          {block.items.map((item, idx) => (
+            <div
+              key={idx}
+              className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm ${
+                item.is_covering
+                  ? 'bg-cyan-950/50 text-cyan-200 border border-cyan-500/50'
+                  : 'bg-malon-card text-malon-sand border border-malon-sand/30'
+              }`}
+            >
+              <div
+                className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black ${
+                  item.is_covering
+                    ? 'bg-cyan-500/30 text-cyan-200'
+                    : 'bg-malon-sand/20 text-malon-sand'
+                }`}
+              >
+                {item.coach_name.slice(0, 2).toUpperCase()}
+              </div>
+              <span>{item.coach_name}</span>
+              {item.is_covering && item.covered_coach_name && (
+                <span className="text-[10px] font-normal text-cyan-300 pl-0.5">
+                  (cubre a {item.covered_coach_name})
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {block.notes && (
+          <p className="text-[11px] text-malon-muted mt-1">
+            {block.notes}
+          </p>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4 pb-20">

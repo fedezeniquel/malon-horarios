@@ -70,6 +70,11 @@ export const NotificationsModal: React.FC = () => {
           bg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
           label: 'CAMBIO TOMADO',
         };
+      case 'shift_reminder':
+        return {
+          bg: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
+          label: 'RECORDATORIO DE TURNO',
+        };
       case 'saturday_guard_reminder':
         return {
           bg: 'bg-purple-500/20 text-purple-300 border-purple-500/40',

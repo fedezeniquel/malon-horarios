@@ -252,12 +252,18 @@ export const CreateShiftChangeModal: React.FC = () => {
       ? ('sabado' as Franja)
       : getFranjaFromTime(startTime);
 
+    const calculatedDuration = calculateDurationHours(startTime, endTime);
+    const finalType: ShiftChangeType =
+      calculatedDuration === 1
+        ? 'single_hour'
+        : (type === 'single_hour' ? 'multiple_hours' : type);
+
     createShiftChange({
       target_date: targetDate,
       day_name: dayName,
       start_time: startTime,
       end_time: endTime,
-      type,
+      type: finalType,
       franja: chosenFranja,
       reason: reason.trim() || 'Motivo personal / Reemplazo',
     });

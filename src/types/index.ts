@@ -105,6 +105,7 @@ export interface ShiftBlockData {
 export type NotificationType =
   | 'shift_change_request'
   | 'shift_change_claimed'
+  | 'shift_reminder'
   | 'saturday_guard_reminder'
   | 'holiday_assignment'
   | 'holiday_reminder';
