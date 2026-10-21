@@ -284,11 +284,10 @@ export const General: React.FC = () => {
     return (
       <div
         key={i}
-        className={`p-3.5 rounded-2xl border transition-all shadow-sm space-y-2.5 ${
-          hasReplacement
+        className={`p-3.5 rounded-2xl border transition-all shadow-sm space-y-2.5 ${hasReplacement
             ? 'bg-gradient-to-r from-malon-surface via-cyan-950/20 to-malon-surface border-cyan-500/40'
             : 'bg-gradient-to-r from-malon-surface to-malon-surface/90 border-malon-sand/40'
-        }`}
+          }`}
       >
         <div className="flex items-center justify-between flex-wrap gap-2">
           {/* HORARIO RESALTADO (TODOS LOS HORARIOS) */}
@@ -333,18 +332,16 @@ export const General: React.FC = () => {
           {block.items.map((item, idx) => (
             <div
               key={idx}
-              className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm ${
-                item.is_covering
+              className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm ${item.is_covering
                   ? 'bg-cyan-950/50 text-cyan-200 border border-cyan-500/50'
                   : 'bg-malon-card text-malon-sand border border-malon-sand/30'
-              }`}
+                }`}
             >
               <div
-                className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black ${
-                  item.is_covering
+                className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black ${item.is_covering
                     ? 'bg-cyan-500/30 text-cyan-200'
                     : 'bg-malon-sand/20 text-malon-sand'
-                }`}
+                  }`}
               >
                 {item.coach_name.slice(0, 2).toUpperCase()}
               </div>
@@ -500,13 +497,12 @@ export const General: React.FC = () => {
             <button
               key={d.id}
               onClick={() => setSelectedDay(d.id)}
-              className={`flex-1 min-w-[46px] py-2 rounded-xl text-center transition-all ${
-                isSelected
+              className={`flex-1 min-w-[46px] py-2 rounded-xl text-center transition-all ${isSelected
                   ? d.id === 7
                     ? 'bg-malon-sand text-black font-black shadow-md shadow-malon-sand/20'
                     : 'bg-malon-red text-white font-bold shadow-md shadow-malon-red/20'
                   : 'text-malon-muted hover:text-white hover:bg-malon-surface/50 font-medium'
-              }`}
+                }`}
             >
               <span className="text-xs block leading-tight">{d.short}</span>
               {dayInfo && (
@@ -550,8 +546,8 @@ export const General: React.FC = () => {
           {selectedDay === 6
             ? `${monthlyGuards.length} sábados este mes`
             : selectedDay === 7
-            ? `${holidays.length} fechas registradas`
-            : '4 Franjas Operativas'}
+              ? `${holidays.length} fechas registradas`
+              : '4 Franjas Operativas'}
         </span>
       </div>
 
@@ -589,11 +585,10 @@ export const General: React.FC = () => {
                 return (
                   <div
                     key={h.id}
-                    className={`p-3.5 rounded-2xl border transition-all space-y-2.5 ${
-                      h.is_closed
+                    className={`p-3.5 rounded-2xl border transition-all space-y-2.5 ${h.is_closed
                         ? 'bg-red-500/5 border-red-500/20'
                         : 'bg-malon-surface/60 border-malon-sand/40 shadow-sm'
-                    }`}
+                      }`}
                   >
                     {/* Encabezado del Feriado */}
                     <div className="flex items-start justify-between">
@@ -601,11 +596,10 @@ export const General: React.FC = () => {
                         <div className="flex items-center space-x-2">
                           <h4 className="text-sm font-bold text-white">{h.name}</h4>
                           <span
-                            className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${
-                              h.is_closed
+                            className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${h.is_closed
                                 ? 'bg-red-500/20 text-red-400 border border-red-500/30'
                                 : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                            }`}
+                              }`}
                           >
                             {h.is_closed ? 'Cerrado' : 'Abierto'}
                           </span>
@@ -868,7 +862,7 @@ export const General: React.FC = () => {
           </div>
         </div>
       ) : (
-        /* Franjas del día de semana: Mañana (7-13), Siesta (13-16), Tarde (16-19), Noche (19-21) */
+        /* Franjas del día de semana: Mañana (7-13), Siesta (13-17), Tarde (17-19), Noche (19-21) */
         <div className="space-y-3">
           {/* 1. FRANJA MAÑANA (07:00 a 13:00) */}
           <div className="bg-malon-card border border-malon-surface rounded-2xl p-3.5 space-y-2.5">
@@ -889,7 +883,7 @@ export const General: React.FC = () => {
             </div>
           </div>
 
-          {/* 2. FRANJA SIESTA (13:00 a 16:00) */}
+          {/* 2. FRANJA SIESTA (13:00 a 17:00) */}
           <div className="bg-malon-card border border-malon-surface rounded-2xl p-3.5 space-y-2.5">
             <div className="flex items-center justify-between border-b border-malon-surface/80 pb-2">
               <div className="flex items-center space-x-2">
@@ -899,7 +893,7 @@ export const General: React.FC = () => {
                 </h4>
               </div>
               <span className="text-xs font-mono font-bold text-yellow-400">
-                13:00 a 16:00 hs
+                13:00 a 17:00 hs
               </span>
             </div>
 
@@ -908,7 +902,7 @@ export const General: React.FC = () => {
             </div>
           </div>
 
-          {/* 3. FRANJA TARDE (16:00 a 19:00) */}
+          {/* 3. FRANJA TARDE (17:00 a 19:00) */}
           <div className="bg-malon-card border border-malon-surface rounded-2xl p-3.5 space-y-2.5">
             <div className="flex items-center justify-between border-b border-malon-surface/80 pb-2">
               <div className="flex items-center space-x-2">
@@ -918,7 +912,7 @@ export const General: React.FC = () => {
                 </h4>
               </div>
               <span className="text-xs font-mono font-bold text-orange-400">
-                16:00 a 19:00 hs
+                17:00 a 19:00 hs
               </span>
             </div>
 
