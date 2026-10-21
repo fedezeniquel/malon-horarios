@@ -19,7 +19,6 @@ import {
   INITIAL_SATURDAY_GUARDS,
   INITIAL_SHIFT_CHANGES,
   INITIAL_HOLIDAYS,
-  INITIAL_NOTIFICATIONS,
 } from '../lib/initialData';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { calculateDurationHours, getFranjaFromTime } from '../lib/hoursAudit';
@@ -132,11 +131,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [shifts, setShifts] = useState<Shift[]>(() => {
     const version = localStorage.getItem('malon_data_version');
-    if (version !== 'v3_production') {
-      localStorage.setItem('malon_data_version', 'v3_production');
+    if (version !== 'v4_demo') {
+      localStorage.setItem('malon_data_version', 'v4_demo');
       localStorage.setItem('malon_shifts', JSON.stringify(INITIAL_SHIFTS));
       localStorage.setItem('malon_saturday_guards', JSON.stringify(INITIAL_SATURDAY_GUARDS));
       localStorage.setItem('malon_shift_changes', JSON.stringify([]));
+      localStorage.setItem('malon_notifications', JSON.stringify([]));
       return INITIAL_SHIFTS.map(normalizeShift);
     }
     const local = localStorage.getItem('malon_shifts');
@@ -146,7 +146,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [saturdayGuards, setSaturdayGuards] = useState<SaturdayGuard[]>(() => {
     const version = localStorage.getItem('malon_data_version');
-    if (version !== 'v3_production') {
+    if (version !== 'v4_demo') {
       return INITIAL_SATURDAY_GUARDS;
     }
     const local = localStorage.getItem('malon_saturday_guards');
@@ -155,7 +155,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [shiftChanges, setShiftChanges] = useState<ShiftChangeRequest[]>(() => {
     const version = localStorage.getItem('malon_data_version');
-    if (version !== 'v3_production') {
+    if (version !== 'v4_demo') {
       return [];
     }
     const local = localStorage.getItem('malon_shift_changes');
@@ -164,7 +164,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [holidays, setHolidays] = useState<HolidaySchedule[]>(() => {
     const version = localStorage.getItem('malon_data_version');
-    if (version !== 'v3_production') {
+    if (version !== 'v4_demo') {
       return INITIAL_HOLIDAYS;
     }
     const local = localStorage.getItem('malon_holidays');
@@ -175,8 +175,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isHolidayModalOpen, setIsHolidayModalOpen] = useState<boolean>(false);
 
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
+    const version = localStorage.getItem('malon_data_version');
+    if (version !== 'v4_demo') {
+      return [];
+    }
     const local = localStorage.getItem('malon_notifications');
-    return local ? JSON.parse(local) : INITIAL_NOTIFICATIONS;
+    return local ? JSON.parse(local) : [];
   });
   const [isNotificationsModalOpen, setIsNotificationsModalOpen] = useState<boolean>(false);
 
@@ -408,7 +412,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           .select('*')
           .order('creado_el', { ascending: false })
           .limit(50);
-        if (!notifsErr && dbNotifs && isMounted && dbNotifs.length > 0) {
+        if (!notifsErr && dbNotifs && isMounted) {
           setNotifications(dbNotifs.map(mapDbToNotification));
         }
       } catch (err) {

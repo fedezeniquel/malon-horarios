@@ -24,29 +24,125 @@ export const getDayOfWeekFromDateStr = (dateStr: string): number => {
 };
 
 /**
+ * Retorna la fecha del lunes correspondiente a la semana que contiene a baseDate
+ */
+export const getMondayOfWeek = (baseDate: Date): Date => {
+  const d = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+  const day = d.getDay();
+  // En JavaScript: 0 es Domingo, 1 es Lunes, etc.
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  return d;
+};
+
+/**
+ * Formatea un objeto Date en string YYYY-MM-DD
+ */
+export const formatDateToIso = (d: Date): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+export interface WeekDayInfo {
+  dayOfWeek: number;
+  name: string;
+  fullName: string;
+  dateStr: string;
+  dayOfMonth: number;
+  monthShort: string;
+  isToday: boolean;
+}
+
+/**
+ * Retorna los 6 días operativos (Lunes a Sábado) para la semana que inicia en mondayDate
+ */
+export const getWeekDays = (mondayDate: Date): WeekDayInfo[] => {
+  const days: WeekDayInfo[] = [];
+  const todayIso = formatDateToIso(new Date());
+
+  const dayNames = [
+    { id: 1, name: 'Lun', fullName: 'Lunes' },
+    { id: 2, name: 'Mar', fullName: 'Martes' },
+    { id: 3, name: 'Mié', fullName: 'Miércoles' },
+    { id: 4, name: 'Jue', fullName: 'Jueves' },
+    { id: 5, name: 'Vie', fullName: 'Viernes' },
+    { id: 6, name: 'Sáb', fullName: 'Sábado' },
+  ];
+
+  for (let i = 0; i < 6; i++) {
+    const cur = new Date(mondayDate.getFullYear(), mondayDate.getMonth(), mondayDate.getDate() + i);
+    const dateStr = formatDateToIso(cur);
+    days.push({
+      dayOfWeek: dayNames[i].id,
+      name: dayNames[i].name,
+      fullName: dayNames[i].fullName,
+      dateStr,
+      dayOfMonth: cur.getDate(),
+      monthShort: cur.toLocaleDateString('es-AR', { month: 'short' }).replace('.', ''),
+      isToday: dateStr === todayIso,
+    });
+  }
+
+  return days;
+};
+
+/**
+ * Formato amigable de rango semanal (ej: "19 al 24 de Octubre")
+ */
+export const formatWeekRange = (mondayDate: Date): string => {
+  const saturdayDate = new Date(mondayDate.getFullYear(), mondayDate.getMonth(), mondayDate.getDate() + 5);
+  const startDay = mondayDate.getDate();
+  const endDay = saturdayDate.getDate();
+  const endMonth = saturdayDate.toLocaleDateString('es-AR', { month: 'long' });
+
+  if (mondayDate.getMonth() === saturdayDate.getMonth()) {
+    return `${startDay} al ${endDay} de ${endMonth.charAt(0).toUpperCase() + endMonth.slice(1)}`;
+  }
+  const startMonth = mondayDate.toLocaleDateString('es-AR', { month: 'short' }).replace('.', '');
+  return `${startDay} ${startMonth} al ${endDay} de ${endMonth.charAt(0).toUpperCase() + endMonth.slice(1)}`;
+};
+
+/**
+ * Retorna los cambios de turno que aplican a una fecha específica (o día de la semana si no se pasa fecha)
+ */
+export const getChangesForDateOrDayOfWeek = (
+  dayOfWeek: number,
+  shiftChanges: ShiftChangeRequest[],
+  targetDateStr?: string
+): ShiftChangeRequest[] => {
+  return shiftChanges.filter(ch => {
+    if (ch.status === 'cancelled') return false;
+    if (targetDateStr) {
+      return ch.target_date === targetDateStr;
+    }
+    return getDayOfWeekFromDateStr(ch.target_date) === dayOfWeek;
+  });
+};
+
+/**
  * Retorna los cambios de turno que aplican a un día de la semana específico
  */
 export const getChangesForDayOfWeek = (
   dayOfWeek: number,
   shiftChanges: ShiftChangeRequest[]
 ): ShiftChangeRequest[] => {
-  return shiftChanges.filter(ch => {
-    if (ch.status === 'cancelled') return false;
-    return getDayOfWeekFromDateStr(ch.target_date) === dayOfWeek;
-  });
+  return getChangesForDateOrDayOfWeek(dayOfWeek, shiftChanges);
 };
 
 /**
- * Calcula los turnos efectivos de un coach para un día de la semana,
+ * Calcula los turnos efectivos de un coach para un día de la semana y fecha específica,
  * reflejando turnos cedidos (cubiertos por otros) y turnos tomados (cubriendo a otros).
  */
 export const getCoachEffectiveShifts = (
   coachId: string,
   dayOfWeek: number,
   shifts: Shift[],
-  shiftChanges: ShiftChangeRequest[]
+  shiftChanges: ShiftChangeRequest[],
+  targetDateStr?: string
 ): DisplayShift[] => {
-  const dayChanges = getChangesForDayOfWeek(dayOfWeek, shiftChanges);
+  const dayChanges = getChangesForDateOrDayOfWeek(dayOfWeek, shiftChanges, targetDateStr);
   const baseShifts = shifts.filter(s => s.coach_id === coachId && s.day_of_week === dayOfWeek);
 
   const result: DisplayShift[] = [];
@@ -181,9 +277,10 @@ export const getCoachEffectiveShifts = (
 export const getGeneralEffectiveShifts = (
   dayOfWeek: number,
   shifts: Shift[],
-  shiftChanges: ShiftChangeRequest[]
+  shiftChanges: ShiftChangeRequest[],
+  targetDateStr?: string
 ): DisplayShift[] => {
-  const dayChanges = getChangesForDayOfWeek(dayOfWeek, shiftChanges).filter(
+  const dayChanges = getChangesForDateOrDayOfWeek(dayOfWeek, shiftChanges, targetDateStr).filter(
     ch => ch.status === 'confirmed'
   );
   const baseShifts = shifts.filter(s => s.day_of_week === dayOfWeek);

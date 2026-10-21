@@ -1,18 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Clock, Calendar, ArrowLeftRight, Users, CheckCircle2, FileSpreadsheet, Hourglass, Handshake } from 'lucide-react';
+import {
+  Clock,
+  Calendar,
+  ArrowLeftRight,
+  Users,
+  CheckCircle2,
+  FileSpreadsheet,
+  Hourglass,
+  Handshake,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
+} from 'lucide-react';
 import { getMonthlyGuards, MONTH_NAMES } from '../../lib/guardRotation';
 import { calculateCoachMonthlyHours, getFranjaFromTime } from '../../lib/hoursAudit';
-import { getCoachEffectiveShifts } from '../../lib/effectiveShifts';
-
-const DAYS_OF_WEEK = [
-  { id: 1, name: 'Lun', fullName: 'Lunes' },
-  { id: 2, name: 'Mar', fullName: 'Martes' },
-  { id: 3, name: 'Mié', fullName: 'Miércoles' },
-  { id: 4, name: 'Jue', fullName: 'Jueves' },
-  { id: 5, name: 'Vie', fullName: 'Viernes' },
-  { id: 6, name: 'Sáb', fullName: 'Sábado' },
-];
+import {
+  getCoachEffectiveShifts,
+  getMondayOfWeek,
+  getWeekDays,
+  formatWeekRange,
+  formatDateToIso,
+} from '../../lib/effectiveShifts';
 
 export const MiGrilla: React.FC = () => {
   const {
@@ -32,22 +41,44 @@ export const MiGrilla: React.FC = () => {
     return day === 0 ? 1 : day;
   });
 
+  // Navegación semanal (por defecto el lunes de la semana actual)
+  const [currentWeekMonday, setCurrentWeekMonday] = useState<Date>(() => getMondayOfWeek(new Date()));
+
+  const weekDays = useMemo(() => getWeekDays(currentWeekMonday), [currentWeekMonday]);
+  const isCurrentWeek = useMemo(() => {
+    return formatDateToIso(currentWeekMonday) === formatDateToIso(getMondayOfWeek(new Date()));
+  }, [currentWeekMonday]);
+
+  const weekRangeText = useMemo(() => formatWeekRange(currentWeekMonday), [currentWeekMonday]);
+
+  const handlePrevWeek = () => {
+    setCurrentWeekMonday(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 7));
+  };
+
+  const handleNextWeek = () => {
+    setCurrentWeekMonday(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 7));
+  };
+
+  const handleCurrentWeek = () => {
+    setCurrentWeekMonday(getMondayOfWeek(new Date()));
+  };
+
   const myShifts = shifts.filter(s => s.coach_id === currentCoach.id);
   const weeklyHours = myShifts.reduce((acc, curr) => acc + curr.duration_hours, 0);
 
   // Auditoría mensual del coach en curso
   const coachMonthly = calculateCoachMonthlyHours(
     currentCoach.id,
-    today.getFullYear(),
-    today.getMonth(),
+    currentWeekMonday.getFullYear(),
+    currentWeekMonday.getMonth(),
     shifts,
     saturdayGuards,
     shiftChanges,
     holidays
   );
 
-  // Guardias de sábado del mes actual (sin registro histórico)
-  const currentMonthGuards = getMonthlyGuards(today.getFullYear(), today.getMonth(), saturdayGuards);
+  // Guardias de sábado del mes correspondiente
+  const currentMonthGuards = getMonthlyGuards(currentWeekMonday.getFullYear(), currentWeekMonday.getMonth(), saturdayGuards);
   const myGuardsThisMonth = currentMonthGuards.filter(g => g.coach_id === currentCoach.id);
   const nextGuard = myGuardsThisMonth.find(g => new Date(g.date) >= new Date(new Date().setHours(0,0,0,0))) || myGuardsThisMonth[0];
 
@@ -60,11 +91,14 @@ export const MiGrilla: React.FC = () => {
     return h.coach_id_1 === currentCoach.id || h.coach_id_2 === currentCoach.id;
   });
 
+  const selectedDayInfo = weekDays.find(d => d.dayOfWeek === selectedDay) || weekDays[0];
+
   const selectedDayShifts = getCoachEffectiveShifts(
     currentCoach.id,
     selectedDay,
     shifts,
-    shiftChanges
+    shiftChanges,
+    selectedDayInfo.dateStr
   );
 
   return (
@@ -165,36 +199,78 @@ export const MiGrilla: React.FC = () => {
         )}
       </div>
 
-      {/* Selector de días de la semana */}
-      <div>
-        <div className="flex items-center justify-between mb-2 px-1">
-          <h3 className="text-xs font-bold text-malon-sand uppercase tracking-wider">
-            Cronograma Semanal
-          </h3>
-          <span className="text-xs text-malon-muted">
-            {myShifts.length} turnos asignados
-          </span>
+      {/* Selector de días de la semana y navegación semanal */}
+      <div className="space-y-2">
+        {/* Barra de Navegación de Semana */}
+        <div className="flex items-center justify-between bg-malon-card border border-malon-surface rounded-2xl px-3 py-2 shadow-sm">
+          <button
+            onClick={handlePrevWeek}
+            className="p-1.5 rounded-lg hover:bg-malon-surface text-malon-muted hover:text-white transition-all active:scale-95"
+            title="Semana anterior"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          <div className="text-center">
+            <div className="flex items-center justify-center space-x-1.5">
+              <CalendarDays className="w-3.5 h-3.5 text-malon-sand" />
+              <span className="text-xs font-bold text-white">
+                {isCurrentWeek ? 'Semana Actual' : 'Cronograma Semanal'}
+              </span>
+              {isCurrentWeek && (
+                <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30">
+                  Esta Semana
+                </span>
+              )}
+            </div>
+            <span className="text-[11px] text-malon-muted font-mono font-medium block mt-0.5">
+              {weekRangeText}
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-1">
+            {!isCurrentWeek && (
+              <button
+                onClick={handleCurrentWeek}
+                className="px-2 py-1 rounded-lg bg-malon-surface hover:bg-malon-surface/80 text-[10px] font-bold text-malon-sand border border-malon-surface transition-all active:scale-95"
+                title="Volver a la semana actual"
+              >
+                Hoy
+              </button>
+            )}
+            <button
+              onClick={handleNextWeek}
+              className="p-1.5 rounded-lg hover:bg-malon-surface text-malon-muted hover:text-white transition-all active:scale-95"
+              title="Semana siguiente"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
+        {/* Botones de Días de la Semana */}
         <div className="grid grid-cols-6 gap-1.5">
-          {DAYS_OF_WEEK.map(d => {
-            const dayEffective = getCoachEffectiveShifts(currentCoach.id, d.id, shifts, shiftChanges);
+          {weekDays.map(d => {
+            const dayEffective = getCoachEffectiveShifts(currentCoach.id, d.dayOfWeek, shifts, shiftChanges, d.dateStr);
             const hasShift = dayEffective.length > 0;
             const hasCovering = dayEffective.some(s => s.is_covering);
             const hasReplaced = dayEffective.some(s => s.is_replaced);
-            const isSelected = selectedDay === d.id;
+            const isSelected = selectedDay === d.dayOfWeek;
 
             return (
               <button
-                key={d.id}
-                onClick={() => setSelectedDay(d.id)}
-                className={`py-2.5 rounded-xl flex flex-col items-center justify-center transition-all ${
+                key={d.dayOfWeek}
+                onClick={() => setSelectedDay(d.dayOfWeek)}
+                className={`py-2 px-1 rounded-xl flex flex-col items-center justify-center transition-all ${
                   isSelected
                     ? 'bg-malon-surface text-white border border-malon-sand shadow-sm'
                     : 'bg-malon-card hover:bg-malon-surface/50 text-malon-muted border border-malon-surface/60'
                 }`}
               >
                 <span className="text-xs font-bold leading-none">{d.name}</span>
+                <span className={`text-[11px] font-mono font-bold mt-1 leading-none ${isSelected ? 'text-white' : d.isToday ? 'text-malon-sand' : 'text-malon-muted'}`}>
+                  {d.dayOfMonth}
+                </span>
                 <span className="text-[10px] mt-1 leading-none">
                   {hasShift ? (
                     <span
@@ -216,7 +292,7 @@ export const MiGrilla: React.FC = () => {
       <div>
         <div className="flex items-center justify-between mb-2 px-1">
           <h4 className="text-xs font-semibold text-malon-muted">
-            Turnos de {DAYS_OF_WEEK.find(d => d.id === selectedDay)?.fullName}
+            Turnos de {selectedDayInfo.fullName} ({selectedDayInfo.dayOfMonth}/{selectedDayInfo.dateStr.split('-')[1]})
           </h4>
         </div>
 

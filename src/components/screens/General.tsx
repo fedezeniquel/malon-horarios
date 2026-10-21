@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   Sun,
@@ -25,7 +25,14 @@ import {
 import type { SaturdayGuard, HolidaySchedule } from '../../types';
 import { getMonthlyGuards, MONTH_NAMES } from '../../lib/guardRotation';
 import { getFranjaFromTime } from '../../lib/hoursAudit';
-import { getGeneralEffectiveShifts, type DisplayShift } from '../../lib/effectiveShifts';
+import {
+  getGeneralEffectiveShifts,
+  getMondayOfWeek,
+  getWeekDays,
+  formatWeekRange,
+  formatDateToIso,
+  type DisplayShift,
+} from '../../lib/effectiveShifts';
 
 const DAYS = [
   { id: 1, name: 'Lunes', short: 'Lun' },
@@ -62,6 +69,30 @@ export const General: React.FC = () => {
     return day === 0 ? 1 : day;
   });
 
+  // Navegación semanal en Grilla General
+  const [currentWeekMonday, setCurrentWeekMonday] = useState<Date>(() => getMondayOfWeek(new Date()));
+
+  const weekDays = useMemo(() => getWeekDays(currentWeekMonday), [currentWeekMonday]);
+  const isCurrentWeek = useMemo(() => {
+    return formatDateToIso(currentWeekMonday) === formatDateToIso(getMondayOfWeek(new Date()));
+  }, [currentWeekMonday]);
+
+  const weekRangeText = useMemo(() => formatWeekRange(currentWeekMonday), [currentWeekMonday]);
+
+  const handlePrevWeek = () => {
+    setCurrentWeekMonday(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 7));
+  };
+
+  const handleNextWeek = () => {
+    setCurrentWeekMonday(prev => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 7));
+  };
+
+  const handleCurrentWeek = () => {
+    setCurrentWeekMonday(getMondayOfWeek(new Date()));
+  };
+
+  const selectedDayInfo = weekDays.find(d => d.dayOfWeek === selectedDay);
+
   // Estado para la vista mensual de sábados (por defecto el mes y año actual)
   const today = new Date();
   const [guardYear, setGuardYear] = useState<number>(() => today.getFullYear());
@@ -95,7 +126,12 @@ export const General: React.FC = () => {
     setGuardMonth(today.getMonth());
   };
 
-  const dayShifts = getGeneralEffectiveShifts(selectedDay, shifts, shiftChanges);
+  const dayShifts = getGeneralEffectiveShifts(
+    selectedDay,
+    shifts,
+    shiftChanges,
+    selectedDayInfo?.dateStr
+  );
 
   const mananaShifts = dayShifts.filter(s => getFranjaFromTime(s.start_time) === 'manana');
   const siestaShifts = dayShifts.filter(s => getFranjaFromTime(s.start_time) === 'siesta');
@@ -406,10 +442,60 @@ export const General: React.FC = () => {
         </div>
       )}
 
+      {/* Navegación semanal en Grilla General (para días Lunes a Sábado) */}
+      {selectedDay !== 7 && (
+        <div className="flex items-center justify-between bg-malon-card border border-malon-surface rounded-2xl px-3 py-2 shadow-sm">
+          <button
+            onClick={handlePrevWeek}
+            className="p-1.5 rounded-lg hover:bg-malon-surface text-malon-muted hover:text-white transition-all active:scale-95"
+            title="Semana anterior"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
+          <div className="text-center">
+            <div className="flex items-center justify-center space-x-1.5">
+              <CalendarDays className="w-3.5 h-3.5 text-malon-sand" />
+              <span className="text-xs font-bold text-white">
+                {isCurrentWeek ? 'Semana Actual' : 'Cronograma Semanal'}
+              </span>
+              {isCurrentWeek && (
+                <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.2 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30">
+                  Esta Semana
+                </span>
+              )}
+            </div>
+            <span className="text-[11px] text-malon-muted font-mono font-medium block mt-0.5">
+              {weekRangeText}
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-1">
+            {!isCurrentWeek && (
+              <button
+                onClick={handleCurrentWeek}
+                className="px-2 py-1 rounded-lg bg-malon-surface hover:bg-malon-surface/80 text-[10px] font-bold text-malon-sand border border-malon-surface transition-all active:scale-95"
+                title="Volver a la semana actual"
+              >
+                Hoy
+              </button>
+            )}
+            <button
+              onClick={handleNextWeek}
+              className="p-1.5 rounded-lg hover:bg-malon-surface text-malon-muted hover:text-white transition-all active:scale-95"
+              title="Semana siguiente"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Selector de días */}
       <div className="bg-malon-card border border-malon-surface rounded-2xl p-1.5 flex items-center space-x-1 overflow-x-auto">
         {DAYS.map(d => {
           const isSelected = selectedDay === d.id;
+          const dayInfo = weekDays.find(w => w.dayOfWeek === d.id);
           return (
             <button
               key={d.id}
@@ -423,6 +509,11 @@ export const General: React.FC = () => {
               }`}
             >
               <span className="text-xs block leading-tight">{d.short}</span>
+              {dayInfo && (
+                <span className={`text-[10px] font-mono block leading-tight mt-0.5 ${isSelected ? 'text-white' : dayInfo.isToday ? 'text-malon-sand font-bold' : 'text-malon-muted'}`}>
+                  {dayInfo.dayOfMonth}
+                </span>
+              )}
             </button>
           );
         })}
@@ -450,7 +541,10 @@ export const General: React.FC = () => {
       <div className="flex items-center justify-between px-1">
         <h3 className="text-base font-bold text-white flex items-center space-x-2">
           <CalendarDays className="w-4 h-4 text-malon-sand" />
-          <span>{DAYS.find(d => d.id === selectedDay)?.name} en Sala</span>
+          <span>
+            {DAYS.find(d => d.id === selectedDay)?.name}{' '}
+            {selectedDayInfo && `(${selectedDayInfo.dayOfMonth}/${selectedDayInfo.dateStr.split('-')[1]})`} en Sala
+          </span>
         </h3>
         <span className="text-xs text-malon-muted">
           {selectedDay === 6
