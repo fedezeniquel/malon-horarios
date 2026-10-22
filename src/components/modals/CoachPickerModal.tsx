@@ -25,7 +25,7 @@ export const CoachPickerModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md pt-[calc(env(safe-area-inset-top,0px)+0.5rem)]">
       <div className="bg-malon-card border-t sm:border border-malon-surface rounded-t-3xl sm:rounded-2xl w-full max-w-sm max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Header del Modal */}
         <div className="p-4 border-b border-malon-surface flex items-center justify-between">

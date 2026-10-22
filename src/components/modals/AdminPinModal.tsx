@@ -17,7 +17,7 @@ export const AdminPinModal: React.FC = () => {
 
   if (currentCoach.role !== 'admin' && currentCoach.role !== 'coach_admin') {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
         <div className="bg-malon-card border border-malon-surface rounded-2xl w-full max-w-xs p-6 shadow-2xl relative text-center">
           <button
             onClick={handleClose}
@@ -72,7 +72,7 @@ export const AdminPinModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
       <div className="bg-malon-card border border-malon-surface rounded-2xl w-full max-w-xs p-6 shadow-2xl relative text-center">
         {/* Botón cerrar */}
         <button

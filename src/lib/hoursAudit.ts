@@ -26,13 +26,13 @@ export const START_HOURS = WORKING_HOURS.slice(0, -1); // 07:00 a 20:00
 /**
  * Retorna la franja correspondiente según el horario de inicio:
  * - Turno Mañana: 07:00 a 13:00
- * - Turno Siesta: 13:00 a 16:00
- * - Turno Tarde: 16:00 a 19:00
+ * - Turno Siesta: 13:00 a 17:00
+ * - Turno Tarde: 17:00 a 19:00
  * - Turno Noche: 19:00 a 21:00
  */
 export const getFranjaFromTime = (startTime: string): Franja => {
   if (startTime < '13:00') return 'manana';
-  if (startTime < '16:00') return 'siesta';
+  if (startTime < '17:00') return 'siesta';
   if (startTime < '19:00') return 'tarde';
   return 'noche';
 };

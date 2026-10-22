@@ -31,3 +31,14 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #C99E70;
 }
+
+/* Soporte Safe Area para iOS Notch y Dynamic Island */
+.safe-top-header {
+  padding-top: max(env(safe-area-inset-top, 0px), 0.75rem);
+  padding-top: calc(env(safe-area-inset-top, 0px) + 0.75rem);
+}
+
+.safe-bottom-nav {
+  padding-bottom: max(env(safe-area-inset-bottom, 0px), 0.375rem);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 0.375rem);
+}

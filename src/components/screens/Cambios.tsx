@@ -43,9 +43,8 @@ export const Cambios: React.FC = () => {
     c => c.status === 'confirmed' || c.status === 'claimed'
   );
 
-  const getTypeBadge = (type: ShiftChangeRequest['type'], duration?: number) => {
-    const effectiveType = duration === 1 ? 'single_hour' : type;
-    switch (effectiveType) {
+  const getTypeBadge = (type: ShiftChangeRequest['type']) => {
+    switch (type) {
       case 'single_hour':
         return (
           <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/30">
@@ -108,7 +107,7 @@ export const Cambios: React.FC = () => {
             </div>
           </div>
 
-          {getTypeBadge(change.type, duration)}
+          {getTypeBadge(change.type)}
         </div>
 
         {/* Datos del turno */}

@@ -373,7 +373,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const { data: dbTurnos, error: turnosErr } = await client.from('turnos').select('*');
         if (!turnosErr && dbTurnos && isMounted) {
           if (dbTurnos.length > 0) {
-            setShifts(dbTurnos.map(mapDbToShift));
+            setShifts(dbTurnos.map(mapDbToShift).map(normalizeShift));
           } else {
             // Inicializar base de datos con los turnos base
             await client.from('turnos').upsert(INITIAL_SHIFTS.map(mapShiftToDb));
@@ -428,7 +428,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .on('postgres_changes', { event: '*', schema: 'public', table: 'turnos' }, payload => {
         if (!isMounted) return;
         if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-          const updated = mapDbToShift(payload.new);
+          const updated = normalizeShift(mapDbToShift(payload.new));
           setShifts(prev => {
             const exists = prev.some(s => s.id === updated.id);
             return exists ? prev.map(s => (s.id === updated.id ? updated : s)) : [...prev, updated];
@@ -497,8 +497,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
       .subscribe();
 
+    // Re-sincronización inmediata al volver a la app o desbloquear pantalla (clave para iOS)
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible' && isMounted) {
+        fetchCloudData();
+      }
+    };
+
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
     return () => {
       isMounted = false;
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       client.removeChannel(channel);
     };
   }, []);

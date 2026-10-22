@@ -18,7 +18,7 @@ export const Header: React.FC = () => {
   ).length;
 
   return (
-    <header className="sticky top-0 z-30 bg-malon-bg/95 backdrop-blur-md border-b border-malon-surface px-4 py-3">
+    <header className="sticky top-0 z-30 bg-malon-bg/95 backdrop-blur-md border-b border-malon-surface px-4 pb-3 safe-top-header">
       <div className="max-w-md mx-auto flex items-center justify-between">
         {/* Brand identity */}
         <div className="flex items-center space-x-2">

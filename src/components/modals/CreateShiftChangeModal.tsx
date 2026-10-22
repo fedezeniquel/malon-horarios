@@ -117,7 +117,75 @@ export const CreateShiftChangeModal: React.FC = () => {
     }
   }, [isCreateChangeModalOpen, currentCoach.id]);
 
-  const activeShift = coachShiftsOnDate[selectedShiftIndex] || coachShiftsOnDate[0];
+  // Opciones completas de turno: bloques unificados y tramos individuales
+  const fullShiftOptions = useMemo(() => {
+    if (coachShiftsOnDate.length === 0) return [];
+
+    const options: {
+      id: string;
+      start_time: string;
+      end_time: string;
+      duration_hours: number;
+      franja: Franja;
+      label: string;
+      sublabel: string;
+      isUnifiedBlock: boolean;
+    }[] = [];
+
+    continuousBlocks.forEach((block, bIdx) => {
+      const duration = calculateDurationHours(block.start_time, block.end_time);
+      const franja = dayOfWeek === 6 ? ('sabado' as Franja) : getFranjaFromTime(block.start_time);
+
+      const overlappingShifts = coachShiftsOnDate.filter(
+        s => s.start_time >= block.start_time && s.end_time <= block.end_time
+      );
+
+      if (overlappingShifts.length > 1) {
+        // Opción 1: Bloque unificado continuo completo (ej: 17:00 a 19:00 hs)
+        options.push({
+          id: `unified-${bIdx}-${block.start_time}-${block.end_time}`,
+          start_time: block.start_time,
+          end_time: block.end_time,
+          duration_hours: duration,
+          franja,
+          label: `${block.time_display}`,
+          sublabel: `Turno completo unificado (${duration} hs)`,
+          isUnifiedBlock: true,
+        });
+
+        // Opciones secundarias: tramos individuales que componen el bloque
+        overlappingShifts.forEach(s => {
+          const shiftFranja = dayOfWeek === 6 ? ('sabado' as Franja) : getFranjaFromTime(s.start_time);
+          options.push({
+            id: s.id,
+            start_time: s.start_time,
+            end_time: s.end_time,
+            duration_hours: s.duration_hours,
+            franja: shiftFranja,
+            label: `${s.start_time} a ${s.end_time} hs`,
+            sublabel: `Turno ${shiftFranja} (${s.duration_hours} h)`,
+            isUnifiedBlock: false,
+          });
+        });
+      } else {
+        const single = overlappingShifts[0];
+        options.push({
+          id: single?.id || `block-${bIdx}`,
+          start_time: block.start_time,
+          end_time: block.end_time,
+          duration_hours: duration,
+          franja,
+          label: `${block.time_display}`,
+          sublabel: `Turno ${franja} (${duration} hs)`,
+          isUnifiedBlock: false,
+        });
+      }
+    });
+
+    return options;
+  }, [coachShiftsOnDate, continuousBlocks, dayOfWeek]);
+
+  const activeOption = fullShiftOptions[selectedShiftIndex] || fullShiftOptions[0];
 
   // Helper para calcular opciones de 'Hasta' consecutivas a partir de 'Desde'
   const getEndOptionsForStart = (start: string): string[] => {
@@ -153,9 +221,9 @@ export const CreateShiftChangeModal: React.FC = () => {
   useEffect(() => {
     if (coachShiftsOnDate.length > 0 && coachAssignedHours.length > 0) {
       if (type === 'full_shift') {
-        if (activeShift) {
-          setStartTime(activeShift.start_time);
-          setEndTime(activeShift.end_time);
+        if (activeOption) {
+          setStartTime(activeOption.start_time);
+          setEndTime(activeOption.end_time);
         }
       } else if (type === 'single_hour') {
         const initialStart = coachAssignedHours.includes(startTime) ? startTime : coachAssignedHours[0];
@@ -164,14 +232,14 @@ export const CreateShiftChangeModal: React.FC = () => {
         setEndTime(ends[0] || `${String(Number(initialStart.split(':')[0]) + 1).padStart(2, '0')}:00`);
       } else {
         // multiple_hours
-        if (activeShift && (!coachAssignedHours.includes(startTime) || startTime >= endTime)) {
-          setStartTime(activeShift.start_time);
-          setEndTime(activeShift.end_time);
+        if (activeOption && (!coachAssignedHours.includes(startTime) || startTime >= endTime)) {
+          setStartTime(activeOption.start_time);
+          setEndTime(activeOption.end_time);
         }
       }
       setErrorMessage(null);
     }
-  }, [targetDate, selectedShiftIndex, activeShift?.id]);
+  }, [targetDate, selectedShiftIndex, activeOption?.id]);
 
   const handleTypeChange = (newType: ShiftChangeType) => {
     setType(newType);
@@ -180,9 +248,9 @@ export const CreateShiftChangeModal: React.FC = () => {
     if (coachAssignedHours.length === 0) return;
 
     if (newType === 'full_shift') {
-      if (activeShift) {
-        setStartTime(activeShift.start_time);
-        setEndTime(activeShift.end_time);
+      if (activeOption) {
+        setStartTime(activeOption.start_time);
+        setEndTime(activeOption.end_time);
       }
     } else if (newType === 'single_hour') {
       const initialStart = coachAssignedHours[0];
@@ -191,13 +259,13 @@ export const CreateShiftChangeModal: React.FC = () => {
       setEndTime(ends[0] || initialStart);
     } else {
       // multiple_hours: inicializar con el bloque continuo del turno activo o el primer bloque
-      const firstBlock = continuousBlocks.find(b => b.hours.includes(activeShift?.start_time)) || continuousBlocks[0];
+      const firstBlock = continuousBlocks.find(b => b.hours.includes(activeOption?.start_time)) || continuousBlocks[0];
       if (firstBlock) {
         setStartTime(firstBlock.start_time);
         setEndTime(firstBlock.end_time);
-      } else if (activeShift) {
-        setStartTime(activeShift.start_time);
-        setEndTime(activeShift.end_time);
+      } else if (activeOption) {
+        setStartTime(activeOption.start_time);
+        setEndTime(activeOption.end_time);
       }
     }
   };
@@ -252,11 +320,12 @@ export const CreateShiftChangeModal: React.FC = () => {
       ? ('sabado' as Franja)
       : getFranjaFromTime(startTime);
 
-    const calculatedDuration = calculateDurationHours(startTime, endTime);
     const finalType: ShiftChangeType =
-      calculatedDuration === 1
+      type === 'full_shift'
+        ? 'full_shift'
+        : type === 'single_hour'
         ? 'single_hour'
-        : (type === 'single_hour' ? 'multiple_hours' : type);
+        : 'multiple_hours';
 
     createShiftChange({
       target_date: targetDate,
@@ -276,7 +345,7 @@ export const CreateShiftChangeModal: React.FC = () => {
   if (!isCreateChangeModalOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md pt-[calc(env(safe-area-inset-top,0px)+0.5rem)]">
       <div className="bg-malon-card border-t sm:border border-malon-surface rounded-t-3xl sm:rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in">
         {/* Header */}
         <div className="p-4 border-b border-malon-surface flex items-center justify-between">
@@ -355,21 +424,21 @@ export const CreateShiftChangeModal: React.FC = () => {
           ) : (
             /* Caso 2: El coach tiene turnos asignados en esta fecha */
             <>
-              {/* Si tiene 'full_shift' y múltiples turnos en el día, permitir seleccionar cuál ceder */}
-              {type === 'full_shift' && coachShiftsOnDate.length > 1 && (
+              {/* Si tiene 'full_shift' y múltiples opciones de turnos en el día, permitir seleccionar cuál ceder */}
+              {type === 'full_shift' && fullShiftOptions.length > 1 && (
                 <div>
                   <label className="text-xs font-semibold text-malon-sand uppercase tracking-wider block mb-1.5">
-                    Seleccioná cuál de tus turnos querés ceder
+                    Seleccioná qué turno querés ceder
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {coachShiftsOnDate.map((s, idx) => (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {fullShiftOptions.map((opt, idx) => (
                       <button
-                        key={s.id || idx}
+                        key={opt.id || idx}
                         type="button"
                         onClick={() => {
                           setSelectedShiftIndex(idx);
-                          setStartTime(s.start_time);
-                          setEndTime(s.end_time);
+                          setStartTime(opt.start_time);
+                          setEndTime(opt.end_time);
                         }}
                         className={`p-2.5 rounded-xl border text-left text-xs transition-all ${
                           selectedShiftIndex === idx
@@ -377,11 +446,21 @@ export const CreateShiftChangeModal: React.FC = () => {
                             : 'bg-malon-card/80 border-malon-surface text-malon-muted hover:text-white'
                         }`}
                       >
-                        <span className="block text-[10px] uppercase text-malon-sand font-mono">
-                          Turno {s.franja}
+                        <div className="flex items-center justify-between">
+                          <span className="block text-[10px] uppercase text-malon-sand font-mono">
+                            Turno {opt.franja}
+                          </span>
+                          {opt.isUnifiedBlock && (
+                            <span className="text-[9px] bg-malon-red/20 text-malon-red border border-malon-red/30 px-1.5 py-0.2 rounded font-black uppercase">
+                              Completo
+                            </span>
+                          )}
+                        </div>
+                        <span className="font-mono text-white text-xs block font-bold mt-0.5">
+                          {opt.label}
                         </span>
-                        <span className="font-mono text-white text-xs block font-bold">
-                          {s.start_time} a {s.end_time} hs
+                        <span className="text-[10px] text-malon-muted block">
+                          {opt.sublabel}
                         </span>
                       </button>
                     ))}
@@ -390,17 +469,17 @@ export const CreateShiftChangeModal: React.FC = () => {
               )}
 
               {/* Tarjeta informativa según modalidad */}
-              {type === 'full_shift' && activeShift && (
+              {type === 'full_shift' && activeOption && (
                 <div className="bg-malon-surface/50 border border-malon-sand/40 rounded-xl p-3 flex items-center justify-between">
                   <div>
                     <span className="text-[10px] text-malon-muted uppercase tracking-wider font-semibold block">
                       Turno Asignado a Ceder
                     </span>
                     <span className="text-sm font-black text-white font-mono">
-                      {activeShift.start_time} - {activeShift.end_time} hs
+                      {activeOption.start_time} - {activeOption.end_time} hs
                     </span>
                     <span className="text-[10px] text-malon-sand block">
-                      Turno {activeShift.franja} ({activeShift.duration_hours} hs)
+                      {activeOption.sublabel}
                     </span>
                   </div>
                   <div className="w-8 h-8 rounded-lg bg-malon-sand/20 text-malon-sand flex items-center justify-center font-bold">

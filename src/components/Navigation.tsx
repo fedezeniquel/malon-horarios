@@ -9,7 +9,7 @@ export const Navigation: React.FC = () => {
   const openChangesCount = shiftChanges.filter(c => c.status === 'open').length;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 bg-malon-bg/95 backdrop-blur-lg border-t border-malon-surface pb-[env(safe-area-inset-bottom)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-30 bg-malon-bg/95 backdrop-blur-lg border-t border-malon-surface safe-bottom-nav">
       <div className="max-w-md mx-auto grid grid-cols-3 px-2 py-1.5">
         {/* Tab 1: Mi Grilla */}
         <button

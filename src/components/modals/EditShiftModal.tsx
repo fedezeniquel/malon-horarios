@@ -110,7 +110,7 @@ export const EditShiftModal: React.FC = () => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md pt-[calc(env(safe-area-inset-top,0px)+0.5rem)]">
       <div className="bg-malon-card border-t sm:border border-malon-surface rounded-t-3xl sm:rounded-2xl w-full max-w-md max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in">
         {/* Header */}
         <div className="p-4 border-b border-malon-surface flex items-center justify-between">
@@ -178,8 +178,8 @@ export const EditShiftModal: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
               {[
                 { id: 'manana', label: 'Mañana (07-13)' },
-                { id: 'siesta', label: 'Siesta (13-16)' },
-                { id: 'tarde', label: 'Tarde (16-19)' },
+                { id: 'siesta', label: 'Siesta (13-17)' },
+                { id: 'tarde', label: 'Tarde (17-19)' },
                 { id: 'noche', label: 'Noche (19-21)' },
               ].map(f => (
                 <button
@@ -193,9 +193,9 @@ export const EditShiftModal: React.FC = () => {
                         setEndTime('13:00');
                       } else if (f.id === 'siesta') {
                         setStartTime('13:00');
-                        setEndTime('16:00');
+                        setEndTime('17:00');
                       } else if (f.id === 'tarde') {
-                        setStartTime('16:00');
+                        setStartTime('17:00');
                         setEndTime('19:00');
                       } else if (f.id === 'noche') {
                         setStartTime('19:00');
