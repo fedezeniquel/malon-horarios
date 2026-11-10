@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { X, Trash2, Calendar, Check } from 'lucide-react';
 import type { SaturdayGuard } from '../../types';
 import { START_HOURS, getAvailableEndHours } from '../../lib/hoursAudit';
+import { formatDateToIso } from '../../lib/effectiveShifts';
 
 export const EditGuardModal: React.FC = () => {
   const {
@@ -32,7 +33,7 @@ export const EditGuardModal: React.FC = () => {
       const today = new Date();
       const nextSat = new Date();
       nextSat.setDate(today.getDate() + ((6 - today.getDay() + 7) % 7 || 7));
-      setDate(nextSat.toISOString().split('T')[0]);
+      setDate(formatDateToIso(nextSat));
       setStartTime('11:00');
       setEndTime('14:00');
       setCoachId(staff[0]?.id || '');

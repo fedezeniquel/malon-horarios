@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { HolidaySlot } from '../../types';
 import { groupHoursIntoRanges, formatSelectedHoursDisplay } from '../../lib/hoursAudit';
+import { formatDateToIso } from '../../lib/effectiveShifts';
 
 // Intervalos de horas operativas de Malón (1 hora cada uno, de 07:00 a 21:00)
 const HOURLY_SLOTS = [
@@ -87,7 +88,7 @@ export const ManageHolidayModal: React.FC = () => {
     } else {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
-      setDate(tomorrow.toISOString().split('T')[0]);
+      setDate(formatDateToIso(tomorrow));
       setName('');
       setIsClosed(false);
       const defaultHours = ['09:00', '10:00', '11:00', '12:00'];

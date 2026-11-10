@@ -12,11 +12,14 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
+  Sparkles,
 } from 'lucide-react';
 import { getMonthlyGuards, MONTH_NAMES } from '../../lib/guardRotation';
 import { calculateCoachMonthlyHours, getFranjaFromTime } from '../../lib/hoursAudit';
 import {
   getCoachEffectiveShifts,
+  getSaturdayGuardForDate,
+  getHolidayForDate,
   getMondayOfWeek,
   getWeekDays,
   formatWeekRange,
@@ -32,6 +35,7 @@ export const MiGrilla: React.FC = () => {
     holidays,
     isAdminUnlocked,
     setIsCreateChangeModalOpen,
+    setPreselectedChangeDate,
     setIsAuditModalOpen,
   } = useApp();
   
@@ -93,13 +97,25 @@ export const MiGrilla: React.FC = () => {
 
   const selectedDayInfo = weekDays.find(d => d.dayOfWeek === selectedDay) || weekDays[0];
 
+  const selectedDayHoliday = getHolidayForDate(selectedDayInfo.dateStr, holidays);
+  const selectedDaySaturdayGuard = getSaturdayGuardForDate(selectedDayInfo.dateStr, saturdayGuards);
+
   const selectedDayShifts = getCoachEffectiveShifts(
     currentCoach.id,
     selectedDay,
     shifts,
     shiftChanges,
-    selectedDayInfo.dateStr
+    selectedDayInfo.dateStr,
+    saturdayGuards,
+    holidays
   );
+
+  const handleRequestChange = (dateStr?: string) => {
+    if (dateStr) {
+      setPreselectedChangeDate(dateStr);
+    }
+    setIsCreateChangeModalOpen(true);
+  };
 
   return (
     <div className="space-y-5 pb-20">
@@ -126,7 +142,7 @@ export const MiGrilla: React.FC = () => {
           </div>
 
           <button
-            onClick={() => setIsCreateChangeModalOpen(true)}
+            onClick={() => handleRequestChange(selectedDayInfo.dateStr)}
             className="bg-malon-red hover:bg-malon-red-hover active:scale-95 text-white px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shadow-md shadow-malon-red/20"
           >
             <ArrowLeftRight className="w-3.5 h-3.5" />
@@ -151,7 +167,7 @@ export const MiGrilla: React.FC = () => {
           <div className="bg-malon-bg/60 rounded-xl p-2.5 border border-malon-sand/40 text-center shadow-sm">
             <div className="flex items-center justify-center space-x-1 text-malon-sand text-[10px] mb-1 font-bold">
               <Hourglass className="w-3 h-3 text-malon-sand" />
-              <span>Mes {MONTH_NAMES[today.getMonth()].slice(0, 3)}</span>
+              <span>Mes {MONTH_NAMES[currentWeekMonday.getMonth()].slice(0, 3)}</span>
             </div>
             <div className="flex items-baseline justify-center space-x-0.5">
               <span className="text-xl font-black text-malon-sand font-mono">{coachMonthly.totalMonthlyHours}</span>
@@ -251,11 +267,21 @@ export const MiGrilla: React.FC = () => {
         {/* Botones de Días de la Semana */}
         <div className="grid grid-cols-6 gap-1.5">
           {weekDays.map(d => {
-            const dayEffective = getCoachEffectiveShifts(currentCoach.id, d.dayOfWeek, shifts, shiftChanges, d.dateStr);
+            const dayHoliday = holidays.find(h => h.date === d.dateStr);
+            const dayEffective = getCoachEffectiveShifts(
+              currentCoach.id,
+              d.dayOfWeek,
+              shifts,
+              shiftChanges,
+              d.dateStr,
+              saturdayGuards,
+              holidays
+            );
             const hasShift = dayEffective.length > 0;
             const hasCovering = dayEffective.some(s => s.is_covering);
             const hasReplaced = dayEffective.some(s => s.is_replaced);
             const isSelected = selectedDay === d.dayOfWeek;
+            const isHoliday = !!dayHoliday;
 
             return (
               <button
@@ -263,21 +289,30 @@ export const MiGrilla: React.FC = () => {
                 onClick={() => setSelectedDay(d.dayOfWeek)}
                 className={`py-2 px-1 rounded-xl flex flex-col items-center justify-center transition-all ${
                   isSelected
-                    ? 'bg-malon-surface text-white border border-malon-sand shadow-sm'
+                    ? isHoliday
+                      ? 'bg-amber-500/20 text-white border border-amber-400 shadow-sm shadow-amber-500/10'
+                      : 'bg-malon-surface text-white border border-malon-sand shadow-sm'
+                    : isHoliday
+                    ? 'bg-amber-950/20 hover:bg-amber-950/40 text-amber-300 border border-amber-500/30'
                     : 'bg-malon-card hover:bg-malon-surface/50 text-malon-muted border border-malon-surface/60'
                 }`}
               >
-                <span className="text-xs font-bold leading-none">{d.name}</span>
-                <span className={`text-[11px] font-mono font-bold mt-1 leading-none ${isSelected ? 'text-white' : d.isToday ? 'text-malon-sand' : 'text-malon-muted'}`}>
+                <div className="flex items-center space-x-0.5 leading-none">
+                  <span className="text-xs font-bold leading-none">{d.name}</span>
+                  {isHoliday && <Sparkles className="w-2.5 h-2.5 text-amber-400" />}
+                </div>
+                <span className={`text-[11px] font-mono font-bold mt-1 leading-none ${isSelected ? 'text-white' : d.isToday ? 'text-malon-sand' : isHoliday ? 'text-amber-300' : 'text-malon-muted'}`}>
                   {d.dayOfMonth}
                 </span>
                 <span className="text-[10px] mt-1 leading-none">
                   {hasShift ? (
                     <span
                       className={`w-1.5 h-1.5 rounded-full inline-block ${
-                        hasCovering ? 'bg-cyan-400' : hasReplaced ? 'bg-emerald-400' : 'bg-malon-sand'
+                        hasCovering ? 'bg-cyan-400' : hasReplaced ? 'bg-emerald-400' : isHoliday ? 'bg-amber-400' : 'bg-malon-sand'
                       }`}
                     />
+                  ) : isHoliday ? (
+                    <span className="text-[9px] text-amber-400/80 leading-none">★</span>
                   ) : (
                     <span className="text-malon-surface">-</span>
                   )}
@@ -291,56 +326,257 @@ export const MiGrilla: React.FC = () => {
       {/* Lista de turnos del día */}
       <div>
         <div className="flex items-center justify-between mb-2 px-1">
-          <h4 className="text-xs font-semibold text-malon-muted">
-            Turnos de {selectedDayInfo.fullName} ({selectedDayInfo.dayOfMonth}/{selectedDayInfo.dateStr.split('-')[1]})
-          </h4>
+          <div className="flex items-center space-x-2">
+            <h4 className="text-xs font-semibold text-malon-muted">
+              Turnos de {selectedDayInfo.fullName} ({selectedDayInfo.dayOfMonth}/{selectedDayInfo.dateStr.split('-')[1]})
+            </h4>
+            {selectedDayHoliday && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center space-x-1">
+                <Sparkles className="w-3 h-3 text-amber-400" />
+                <span>Feriado</span>
+              </span>
+            )}
+          </div>
         </div>
 
-        {selectedDay === 6 ? (
-          <div className="space-y-2">
-            {myGuardsThisMonth.length > 0 ? (
-              myGuardsThisMonth.map(guard => (
+        {/* 1. CASO: DÍA FERIADO */}
+        {selectedDayHoliday ? (
+          selectedDayHoliday.is_closed ? (
+            <div className="bg-gradient-to-br from-malon-card to-red-950/20 border border-red-500/30 rounded-2xl p-5 text-center space-y-2 shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mx-auto">
+                <Calendar className="w-5 h-5" />
+              </div>
+              <h4 className="text-sm font-bold text-white">Gimnasio Cerrado por Feriado</h4>
+              <p className="text-xs text-amber-400 font-semibold">{selectedDayHoliday.name}</p>
+              <p className="text-xs text-malon-muted max-w-sm mx-auto">
+                {selectedDayHoliday.notes || 'No hay actividad en sala ni turnos operativos programados.'}
+              </p>
+              <span className="inline-block mt-2 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-malon-surface text-malon-sand border border-malon-surface">
+                Día libre para todo el staff 🎉
+              </span>
+            </div>
+          ) : selectedDayShifts.length > 0 ? (
+            <div className="space-y-2.5">
+              {selectedDayShifts.map(shift => (
                 <div
-                  key={guard.id}
-                  className="bg-malon-card border border-malon-surface rounded-2xl p-4 space-y-3"
+                  key={shift.id}
+                  className="bg-malon-card border border-amber-500/40 rounded-2xl p-4 shadow-sm space-y-3 bg-gradient-to-r from-malon-card to-amber-950/20"
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30">
-                      Guardia de Sábado
-                    </span>
-                    <span className="text-xs font-mono font-bold text-white">
-                      {guard.start_time} - {guard.end_time} hs
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center space-x-1">
+                        <Sparkles className="w-3 h-3 text-amber-400" />
+                        <span>Feriado ({selectedDayHoliday.name})</span>
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30 flex items-center space-x-1">
+                        <Users className="w-3 h-3" />
+                        <span>Doble Cobertura</span>
+                      </span>
+                    </div>
+                    <span className="text-sm font-black font-mono text-white">
+                      {shift.start_time} - {shift.end_time} hs
                     </span>
                   </div>
+
                   <div>
-                    <h4 className="text-sm font-bold text-white">
-                      Guardia Rotativa de Sala
+                    <h4 className="text-sm font-bold text-white flex items-center justify-between">
+                      <span>Jornada Especial en Sala</span>
+                      <span className="text-xs text-malon-muted font-normal">
+                        {shift.duration_hours} hs
+                      </span>
                     </h4>
-                    <p className="text-xs text-malon-muted mt-0.5">
-                      Fecha: {guard.date.split('-').slice(1).reverse().join('/')}
-                    </p>
+                    {shift.partner_name && (
+                      <p className="text-xs text-malon-sand font-medium mt-1 flex items-center space-x-1">
+                        <span>Dupla de trabajo:</span>
+                        <strong className="text-white underline decoration-malon-sand">
+                          {shift.partner_name}
+                        </strong>
+                      </p>
+                    )}
+                    {shift.notes && (
+                      <p className="text-xs text-malon-muted/80 mt-1">
+                        {shift.notes}
+                      </p>
+                    )}
                   </div>
-                  <div className="pt-2 border-t border-malon-surface flex justify-end">
+
+                  <div className="pt-2 border-t border-malon-surface flex items-center justify-between">
+                    <span className="text-[11px] text-amber-300/80">
+                      Horario especial de feriado ({selectedDayHoliday.time_display})
+                    </span>
                     <button
-                      onClick={() => setIsCreateChangeModalOpen(true)}
-                      className="text-xs text-malon-red hover:underline font-semibold flex items-center space-x-1"
+                      onClick={() => handleRequestChange(selectedDayInfo.dateStr)}
+                      className="text-xs text-malon-red hover:text-white hover:bg-malon-red/20 px-2.5 py-1 rounded-lg border border-malon-red/30 font-semibold transition-all flex items-center space-x-1"
                     >
-                      <ArrowLeftRight className="w-3.5 h-3.5" />
-                      <span>Pedir reemplazo para esta guardia</span>
+                      <ArrowLeftRight className="w-3 h-3" />
+                      <span>Pedir reemplazo</span>
                     </button>
                   </div>
                 </div>
-              ))
-            ) : (
-              <div className="bg-malon-card/50 border border-dashed border-malon-surface rounded-2xl p-6 text-center">
-                <CheckCircle2 className="w-8 h-8 text-malon-muted mx-auto mb-2 opacity-50" />
-                <p className="text-xs font-medium text-malon-muted">
-                  No tenés guardia asignada para este sábado de {MONTH_NAMES[today.getMonth()]}
-                </p>
-              </div>
-            )}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-malon-card/60 border border-dashed border-amber-500/30 rounded-2xl p-6 text-center space-y-2">
+              <Sparkles className="w-8 h-8 text-amber-400 mx-auto opacity-75" />
+              <h4 className="text-sm font-bold text-white">Día libre por Feriado 🎉</h4>
+              <p className="text-xs text-amber-400/90 font-medium">{selectedDayHoliday.name}</p>
+              <p className="text-xs text-malon-muted max-w-sm mx-auto">
+                No tenés turnos asignados para esta jornada especial. El gimnasio estará abierto en horario reducido de{' '}
+                <strong className="text-malon-sand">{selectedDayHoliday.time_display}</strong> con doble cobertura.
+              </p>
+            </div>
+          )
+        ) : selectedDay === 6 ? (
+          /* 2. CASO: SÁBADO (NO FERIADO) - ESPECÍFICO DE ESTA SEMANA */
+          selectedDayShifts.length > 0 ? (
+            <div className="space-y-2.5">
+              {selectedDayShifts.map(shift => {
+                const isReplaced = shift.is_replaced;
+                const isCovering = shift.is_covering;
+                const hasOpenChange = shift.change_status === 'open';
+                const hasClaimedChange = shift.change_status === 'claimed';
+
+                return (
+                  <div
+                    key={shift.id}
+                    className={`bg-malon-card border rounded-2xl p-4 transition-all space-y-3 ${
+                      isCovering
+                        ? 'border-cyan-500/40 bg-gradient-to-r from-malon-card to-cyan-950/20 shadow-sm'
+                        : isReplaced
+                        ? 'border-emerald-500/30 bg-gradient-to-r from-malon-card to-emerald-950/20'
+                        : 'border-malon-surface hover:border-malon-sand/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-malon-sand/20 text-malon-sand border border-malon-sand/30">
+                          Guardia de Sábado
+                        </span>
+
+                        {isCovering && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center space-x-1">
+                            <Handshake className="w-3 h-3" />
+                            <span>Cubriendo a {shift.covered_coach_name}</span>
+                          </span>
+                        )}
+
+                        {isReplaced && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center space-x-1">
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>Cubre {shift.replacement_coach_name}</span>
+                          </span>
+                        )}
+
+                        {!isCovering && !isReplaced && hasOpenChange && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center space-x-1">
+                            <Hourglass className="w-3 h-3" />
+                            <span>En Bolsa de Cambios</span>
+                          </span>
+                        )}
+
+                        {!isCovering && !isReplaced && hasClaimedChange && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center space-x-1">
+                            <Handshake className="w-3 h-3" />
+                            <span>Tomado por {shift.replacement_coach_name}</span>
+                          </span>
+                        )}
+                      </div>
+
+                      <span className="text-sm font-black font-mono text-white">
+                        {shift.start_time} - {shift.end_time} hs
+                      </span>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-bold text-white flex items-center justify-between">
+                        <span>Guardia Rotativa de Sala</span>
+                        <span className="text-xs text-malon-muted font-normal">
+                          {shift.duration_hours} hs
+                        </span>
+                      </h4>
+
+                      {isCovering && (
+                        <div className="mt-2 p-2.5 rounded-xl bg-cyan-950/40 border border-cyan-500/30 flex items-center justify-between text-xs text-cyan-200">
+                          <span className="flex items-center space-x-1.5">
+                            <Handshake className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                            <span>Reemplazo confirmado: estás cubriendo a <strong>{shift.covered_coach_name}</strong></span>
+                          </span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider bg-cyan-500/20 px-2 py-0.5 rounded-full">
+                            Asignado
+                          </span>
+                        </div>
+                      )}
+
+                      {isReplaced && (
+                        <div className="mt-2 p-2.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-200">
+                          <span className="flex items-center space-x-1.5">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                            <span>Reemplazo confirmado: <strong>{shift.replacement_coach_name}</strong> cubre esta guardia</span>
+                          </span>
+                          <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 px-2 py-0.5 rounded-full">
+                            Cubierto
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="pt-2 border-t border-malon-surface flex items-center justify-between">
+                      <span className="text-[11px] text-malon-muted">
+                        {isCovering
+                          ? 'Cobertura de guardia'
+                          : isReplaced
+                          ? 'Guardia cubierta por compañero'
+                          : 'Guardia fija asignada'}
+                      </span>
+
+                      {isCovering ? (
+                        <span className="text-xs text-cyan-300 font-semibold flex items-center space-x-1">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>En tu cronograma</span>
+                        </span>
+                      ) : isReplaced ? (
+                        <span className="text-xs text-emerald-400 font-semibold flex items-center space-x-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Guardia cubierta</span>
+                        </span>
+                      ) : hasOpenChange ? (
+                        <span className="text-xs text-amber-400 font-medium flex items-center space-x-1">
+                          <Hourglass className="w-3.5 h-3.5" />
+                          <span>Publicado en Bolsa</span>
+                        </span>
+                      ) : hasClaimedChange ? (
+                        <span className="text-xs text-amber-300 font-medium flex items-center space-x-1">
+                          <Handshake className="w-3.5 h-3.5" />
+                          <span>Tomado (Confirmar en Cambios)</span>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleRequestChange(selectedDayInfo.dateStr)}
+                          className="text-xs text-malon-red hover:underline font-semibold flex items-center space-x-1"
+                        >
+                          <ArrowLeftRight className="w-3.5 h-3.5" />
+                          <span>Pedir reemplazo para esta guardia</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="bg-malon-card/50 border border-dashed border-malon-surface rounded-2xl p-6 text-center space-y-2">
+              <CheckCircle2 className="w-8 h-8 text-malon-muted mx-auto opacity-50" />
+              <p className="text-xs font-bold text-white">
+                Sábado libre para {currentCoach.name} 🎉
+              </p>
+              <p className="text-xs text-malon-muted">
+                Guardia de este sábado ({selectedDayInfo.dayOfMonth}/{selectedDayInfo.dateStr.split('-')[1]}) a cargo de:{' '}
+                <strong className="text-malon-sand font-bold">{selectedDaySaturdayGuard.coach_name}</strong> (11:00 a 14:00 hs)
+              </p>
+            </div>
+          )
         ) : selectedDayShifts.length > 0 ? (
+          /* 3. CASO: DÍA HÁBIL COMÚN CON TURNOS */
           <div className="space-y-2.5">
             {selectedDayShifts.map(shift => {
               const isReplaced = shift.is_replaced;
@@ -501,7 +737,7 @@ export const MiGrilla: React.FC = () => {
                       </span>
                     ) : (
                       <button
-                        onClick={() => setIsCreateChangeModalOpen(true)}
+                        onClick={() => handleRequestChange(selectedDayInfo.dateStr)}
                         className="text-xs text-malon-red hover:text-white hover:bg-malon-red/20 px-2.5 py-1 rounded-lg border border-malon-red/30 font-semibold transition-all flex items-center space-x-1"
                       >
                         <ArrowLeftRight className="w-3 h-3" />
@@ -526,7 +762,7 @@ export const MiGrilla: React.FC = () => {
       {/* Guardias de sábado del mes actual (sin historial antiguo) */}
       <div className="bg-malon-card border border-malon-surface rounded-2xl p-4">
         <h4 className="text-xs font-bold text-malon-sand uppercase tracking-wider mb-2 flex items-center justify-between">
-          <span>Guardias de Sábados ({MONTH_NAMES[today.getMonth()]})</span>
+          <span>Guardias de Sábados ({MONTH_NAMES[currentWeekMonday.getMonth()]})</span>
           <span className="text-[10px] text-malon-muted font-mono">11:00 - 14:00 hs</span>
         </h4>
         <div className="space-y-2 mt-3">

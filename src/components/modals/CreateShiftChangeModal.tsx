@@ -1,36 +1,93 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { X, Clock, AlertCircle, Calendar, CheckCircle2 } from 'lucide-react';
+import {
+  X,
+  Clock,
+  AlertCircle,
+  Calendar,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Sparkles,
+} from 'lucide-react';
 import type { ShiftChangeType, Franja } from '../../types';
 import { calculateDurationHours, getFranjaFromTime, groupHoursIntoRanges } from '../../lib/hoursAudit';
-import { getMonthlyGuards } from '../../lib/guardRotation';
+import {
+  getCoachEffectiveShifts,
+  getHolidayForDate,
+  formatDateToIso,
+} from '../../lib/effectiveShifts';
 
 export const CreateShiftChangeModal: React.FC = () => {
   const {
     currentCoach,
     shifts,
     saturdayGuards,
+    shiftChanges,
+    holidays,
     isCreateChangeModalOpen,
     setIsCreateChangeModalOpen,
+    preselectedChangeDate,
+    setPreselectedChangeDate,
     createShiftChange,
   } = useApp();
 
-  // Buscar el día más cercano donde el coach tiene turno asignado para abrir el modal ahí por defecto
-  const [targetDate, setTargetDate] = useState(() => {
-    const today = new Date();
-    const coachDays = new Set(
-      shifts.filter(s => s.coach_id === currentCoach.id).map(s => s.day_of_week)
-    );
+  // Lista de próximos turnos asignados del coach (próximos 21 días)
+  const upcomingShiftsList = useMemo(() => {
+    const list: {
+      dateStr: string;
+      dayShort: string;
+      dayName: string;
+      dateDisplay: string;
+      timeSummary: string;
+      isHoliday: boolean;
+      holidayName?: string;
+    }[] = [];
 
-    for (let i = 0; i < 7; i++) {
-      const candidate = new Date();
-      candidate.setDate(today.getDate() + i);
-      const day = candidate.getDay();
-      if (coachDays.has(day)) {
-        return candidate.toISOString().split('T')[0];
+    const now = new Date();
+    const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const dayShorts = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+
+    for (let i = 0; i < 21; i++) {
+      const cur = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+      const dStr = formatDateToIso(cur);
+      const jsDow = cur.getDay();
+      const dow = jsDow === 0 ? 7 : jsDow;
+
+      const holiday = getHolidayForDate(dStr, holidays);
+      if (holiday?.is_closed) continue;
+
+      const eff = getCoachEffectiveShifts(
+        currentCoach.id,
+        dow,
+        shifts,
+        shiftChanges,
+        dStr,
+        saturdayGuards,
+        holidays
+      );
+
+      // Turnos propios (no cubriendo a otros, ni ya reemplazados)
+      const ownShifts = eff.filter(s => !s.is_covering && !s.is_replaced);
+
+      if (ownShifts.length > 0) {
+        list.push({
+          dateStr: dStr,
+          dayShort: dayShorts[jsDow],
+          dayName: dayNames[jsDow],
+          dateDisplay: `${cur.getDate()}/${cur.getMonth() + 1}`,
+          timeSummary: ownShifts.map(s => `${s.start_time}-${s.end_time}`).join(', '),
+          isHoliday: !!holiday,
+          holidayName: holiday?.name,
+        });
       }
     }
-    return today.toISOString().split('T')[0];
+
+    return list;
+  }, [currentCoach.id, shifts, shiftChanges, saturdayGuards, holidays]);
+
+  const [targetDate, setTargetDate] = useState(() => {
+    return formatDateToIso(new Date());
   });
 
   const [selectedShiftIndex, setSelectedShiftIndex] = useState<number>(0);
@@ -47,34 +104,22 @@ export const CreateShiftChangeModal: React.FC = () => {
   const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
   const dayName = dayNames[dayOfWeek];
 
-  const weekdayShifts = shifts.filter(
-    s => s.coach_id === currentCoach.id && s.day_of_week === dayOfWeek
-  );
+  const holidayOnDate = getHolidayForDate(targetDate, holidays);
 
-  const saturdayShiftList = (() => {
-    if (dayOfWeek !== 6) return [];
-    const monthlyGuards = getMonthlyGuards(year, month - 1, saturdayGuards);
-    const myGuard = monthlyGuards.find(
-      g => g.date === targetDate && g.coach_id === currentCoach.id
+  const coachShiftsOnDate = useMemo(() => {
+    const dow = dayOfWeek === 0 ? 7 : dayOfWeek;
+    const eff = getCoachEffectiveShifts(
+      currentCoach.id,
+      dow,
+      shifts,
+      shiftChanges,
+      targetDate,
+      saturdayGuards,
+      holidays
     );
-    if (!myGuard) return [];
-    return [
-      {
-        id: myGuard.id,
-        day_of_week: 6,
-        start_time: myGuard.start_time,
-        end_time: myGuard.end_time,
-        duration_hours: calculateDurationHours(myGuard.start_time, myGuard.end_time) || 3,
-        franja: 'sabado' as Franja,
-        coach_id: currentCoach.id,
-        coach_name: currentCoach.name,
-        is_double_coverage: false,
-        notes: 'Guardia Rotativa de Sábado',
-      },
-    ];
-  })();
-
-  const coachShiftsOnDate = dayOfWeek === 6 ? saturdayShiftList : weekdayShifts;
+    // Filtrar turnos donde el coach no esté cubriendo a otro compañero ni ya esté reemplazado
+    return eff.filter(s => !s.is_covering && !s.is_replaced);
+  }, [currentCoach.id, dayOfWeek, shifts, shiftChanges, targetDate, saturdayGuards, holidays]);
 
   // Todas las horas individuales asignadas al coach en esta fecha
   const coachAssignedHours = useMemo(() => {
@@ -97,25 +142,32 @@ export const CreateShiftChangeModal: React.FC = () => {
   // Sincronizar fecha válida y limpiar estados al abrir el modal
   useEffect(() => {
     if (isCreateChangeModalOpen) {
-      const coachDays = new Set(
-        shifts.filter(s => s.coach_id === currentCoach.id).map(s => s.day_of_week)
-      );
-      const today = new Date();
-      let foundDate = today.toISOString().split('T')[0];
-      for (let i = 0; i < 7; i++) {
-        const candidate = new Date();
-        candidate.setDate(today.getDate() + i);
-        if (coachDays.has(candidate.getDay())) {
-          foundDate = candidate.toISOString().split('T')[0];
-          break;
-        }
+      if (preselectedChangeDate) {
+        setTargetDate(preselectedChangeDate);
+      } else if (upcomingShiftsList.length > 0) {
+        setTargetDate(upcomingShiftsList[0].dateStr);
+      } else {
+        setTargetDate(formatDateToIso(new Date()));
       }
-      setTargetDate(foundDate);
       setSelectedShiftIndex(0);
       setReason('');
       setErrorMessage(null);
     }
-  }, [isCreateChangeModalOpen, currentCoach.id]);
+  }, [isCreateChangeModalOpen, preselectedChangeDate, upcomingShiftsList]);
+
+  const handlePrevDay = () => {
+    const [y, m, d] = targetDate.split('-').map(Number);
+    const prev = new Date(y, m - 1, d - 1);
+    setTargetDate(formatDateToIso(prev));
+    setSelectedShiftIndex(0);
+  };
+
+  const handleNextDay = () => {
+    const [y, m, d] = targetDate.split('-').map(Number);
+    const next = new Date(y, m - 1, d + 1);
+    setTargetDate(formatDateToIso(next));
+    setSelectedShiftIndex(0);
+  };
 
   // Opciones completas de turno: bloques unificados y tramos individuales
   const fullShiftOptions = useMemo(() => {
@@ -338,8 +390,14 @@ export const CreateShiftChangeModal: React.FC = () => {
     });
 
     setIsCreateChangeModalOpen(false);
+    setPreselectedChangeDate(null);
     setReason('');
     setErrorMessage(null);
+  };
+
+  const handleClose = () => {
+    setIsCreateChangeModalOpen(false);
+    setPreselectedChangeDate(null);
   };
 
   if (!isCreateChangeModalOpen) return null;
@@ -356,7 +414,7 @@ export const CreateShiftChangeModal: React.FC = () => {
             </p>
           </div>
           <button
-            onClick={() => setIsCreateChangeModalOpen(false)}
+            onClick={handleClose}
             className="text-malon-muted hover:text-white p-1 rounded-full bg-malon-surface/50"
           >
             <X className="w-5 h-5" />
@@ -388,23 +446,93 @@ export const CreateShiftChangeModal: React.FC = () => {
           </div>
 
           {/* Selector de Fecha */}
-          <div>
-            <label className="text-xs font-semibold text-malon-sand uppercase tracking-wider block mb-1.5">
-              Fecha del turno a ceder
-            </label>
-            <input
-              type="date"
-              required
-              value={targetDate}
-              onChange={e => {
-                setTargetDate(e.target.value);
-                setSelectedShiftIndex(0);
-              }}
-              className="w-full bg-malon-surface/70 border border-malon-surface rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-malon-sand font-mono"
-            />
-            <span className="text-[11px] text-malon-muted block mt-1">
-              Día seleccionado: <strong className="text-white">{dayName}</strong>
-            </span>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-malon-sand uppercase tracking-wider">
+                Fecha del turno a ceder
+              </label>
+              <span className="text-[11px] text-malon-muted">
+                Día: <strong className="text-white">{dayName}</strong>
+              </span>
+            </div>
+
+            {/* Steppers y selector de fecha nativo accesible en móvil */}
+            <div className="flex items-center space-x-1.5">
+              <button
+                type="button"
+                onClick={handlePrevDay}
+                className="p-2.5 rounded-xl bg-malon-surface/80 hover:bg-malon-surface border border-malon-surface text-malon-muted hover:text-white transition-all active:scale-95 flex items-center justify-center"
+                title="Día anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <input
+                type="date"
+                required
+                value={targetDate}
+                style={{ colorScheme: 'dark' }}
+                onChange={e => {
+                  setTargetDate(e.target.value);
+                  setSelectedShiftIndex(0);
+                }}
+                className="flex-1 bg-malon-surface/80 border border-malon-surface rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-malon-sand font-mono text-center"
+              />
+
+              <button
+                type="button"
+                onClick={handleNextDay}
+                className="p-2.5 rounded-xl bg-malon-surface/80 hover:bg-malon-surface border border-malon-surface text-malon-muted hover:text-white transition-all active:scale-95 flex items-center justify-center"
+                title="Día siguiente"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Acceso rápido táctil: Próximos turnos asignados del coach */}
+            {upcomingShiftsList.length > 0 && (
+              <div className="pt-1">
+                <span className="text-[10px] text-malon-muted block mb-1 font-medium">
+                  Tus próximos turnos (tocá para seleccionar la fecha):
+                </span>
+                <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                  {upcomingShiftsList.map(item => (
+                    <button
+                      key={item.dateStr}
+                      type="button"
+                      onClick={() => {
+                        setTargetDate(item.dateStr);
+                        setSelectedShiftIndex(0);
+                      }}
+                      className={`px-2.5 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all border flex items-center space-x-1 flex-shrink-0 ${
+                        targetDate === item.dateStr
+                          ? 'bg-malon-sand text-black border-malon-sand shadow-sm font-black'
+                          : 'bg-malon-surface/80 text-white border-malon-surface hover:border-malon-sand/40'
+                      }`}
+                    >
+                      <span>{item.dayShort} {item.dateDisplay}</span>
+                      <span className={`text-[10px] px-1 rounded ${
+                        targetDate === item.dateStr ? 'bg-black/20 text-black' : 'bg-malon-card text-malon-sand'
+                      }`}>
+                        {item.timeSummary}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {holidayOnDate && (
+              <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs text-amber-300">
+                <span className="flex items-center space-x-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                  <span>Jornada de Feriado: <strong>{holidayOnDate.name}</strong></span>
+                </span>
+                <span className="text-[10px] font-mono text-malon-sand font-bold">
+                  {holidayOnDate.time_display}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Caso 1: El coach no tiene turnos asignados en la fecha seleccionada */}
@@ -418,7 +546,7 @@ export const CreateShiftChangeModal: React.FC = () => {
                 {currentCoach.name}, no tenés ningún turno ni guardia asignada los días <strong>{dayName}</strong> ({targetDate.split('-').slice(1).reverse().join('/')}).
               </p>
               <p className="text-[11px] text-malon-sand font-medium pt-1 border-t border-amber-500/20">
-                Solo podés solicitar reemplazo para tus horas asignadas en grilla. Elegí una fecha en la que tengas turno.
+                Solo podés solicitar reemplazo para tus horas asignadas en grilla. Elegí una fecha en la que tengas turno arriba.
               </p>
             </div>
           ) : (

@@ -1,5 +1,6 @@
-import type { Shift, ShiftChangeRequest, ShiftChangeStatus, ShiftCompensationType } from '../types';
+import type { Shift, ShiftChangeRequest, ShiftChangeStatus, ShiftCompensationType, HolidaySchedule, SaturdayGuard } from '../types';
 import { calculateDurationHours, getFranjaFromTime } from './hoursAudit';
+import { getMonthlyGuards, getProjectedCoachForDate } from './guardRotation';
 
 export interface DisplayShift extends Shift {
   is_replaced?: boolean;
@@ -132,25 +133,136 @@ export const getChangesForDayOfWeek = (
 };
 
 /**
+ * Retorna la guardia de sábado para una fecha YYYY-MM-DD específica
+ */
+export const getSaturdayGuardForDate = (
+  dateStr: string,
+  saturdayGuards: SaturdayGuard[] = []
+): SaturdayGuard => {
+  const [y, m] = dateStr.split('-').map(Number);
+  const monthly = getMonthlyGuards(y, m - 1, saturdayGuards);
+  const found = monthly.find(g => g.date === dateStr);
+  if (found) return found;
+  const projected = getProjectedCoachForDate(dateStr);
+  return {
+    id: `sg-${dateStr}`,
+    date: dateStr,
+    start_time: '11:00',
+    end_time: '14:00',
+    coach_id: projected.id,
+    coach_name: projected.name,
+    status: 'scheduled',
+  };
+};
+
+/**
+ * Retorna el feriado correspondiente a una fecha YYYY-MM-DD específica, si existe
+ */
+export const getHolidayForDate = (
+  dateStr: string,
+  holidays: HolidaySchedule[] = []
+): HolidaySchedule | undefined => {
+  return holidays.find(h => h.date === dateStr);
+};
+
+/**
  * Calcula los turnos efectivos de un coach para un día de la semana y fecha específica,
- * reflejando turnos cedidos (cubiertos por otros) y turnos tomados (cubriendo a otros).
+ * reflejando turnos cedidos (cubiertos por otros), turnos tomados (cubriendo a otros),
+ * guardias de sábado asignadas o cubiertas, y turnos especiales en feriados.
  */
 export const getCoachEffectiveShifts = (
   coachId: string,
   dayOfWeek: number,
   shifts: Shift[],
   shiftChanges: ShiftChangeRequest[],
-  targetDateStr?: string
+  targetDateStr?: string,
+  saturdayGuards?: SaturdayGuard[],
+  holidays?: HolidaySchedule[]
 ): DisplayShift[] => {
+  // 1. Si targetDateStr coincide con un feriado registrado
+  if (targetDateStr && holidays && holidays.length > 0) {
+    const holiday = holidays.find(h => h.date === targetDateStr);
+    if (holiday) {
+      if (holiday.is_closed) {
+        return [];
+      }
+      const holidayShifts: DisplayShift[] = [];
+      if (holiday.slots && holiday.slots.length > 0) {
+        holiday.slots.forEach((slot, sIdx) => {
+          if (slot.coach_id_1 === coachId || slot.coach_id_2 === coachId) {
+            const partnerName = slot.coach_id_1 === coachId ? slot.coach_name_2 : slot.coach_name_1;
+            const coachName = slot.coach_id_1 === coachId ? slot.coach_name_1 : slot.coach_name_2;
+            holidayShifts.push({
+              id: `holiday-${holiday.id}-${slot.id || sIdx}`,
+              day_of_week: dayOfWeek,
+              start_time: slot.start_time,
+              end_time: slot.end_time,
+              duration_hours: slot.duration_hours,
+              franja: dayOfWeek === 6 ? 'sabado' : getFranjaFromTime(slot.start_time),
+              coach_id: coachId,
+              coach_name: coachName,
+              is_double_coverage: true,
+              partner_name: partnerName,
+              notes: `Feriado: ${holiday.name}` + (holiday.notes ? ` (${holiday.notes})` : ''),
+            });
+          }
+        });
+      } else if (holiday.coach_id_1 === coachId || holiday.coach_id_2 === coachId) {
+        const partnerName = holiday.coach_id_1 === coachId ? holiday.coach_name_2 : holiday.coach_name_1;
+        const coachName = holiday.coach_id_1 === coachId ? holiday.coach_name_1 : holiday.coach_name_2;
+        const startTime = holiday.selected_hours?.[0] || '09:00';
+        const endTime = holiday.selected_hours?.[holiday.selected_hours.length - 1]
+          ? `${String(Number(holiday.selected_hours[holiday.selected_hours.length - 1].split(':')[0]) + 1).padStart(2, '0')}:00`
+          : '13:00';
+        holidayShifts.push({
+          id: `holiday-${holiday.id}`,
+          day_of_week: dayOfWeek,
+          start_time: startTime,
+          end_time: endTime,
+          duration_hours: holiday.total_hours || 4,
+          franja: dayOfWeek === 6 ? 'sabado' : getFranjaFromTime(startTime),
+          coach_id: coachId,
+          coach_name: coachName,
+          is_double_coverage: true,
+          partner_name: partnerName,
+          notes: `Feriado: ${holiday.name}` + (holiday.notes ? ` (${holiday.notes})` : ''),
+        });
+      }
+      return holidayShifts.sort((a, b) => a.start_time.localeCompare(b.start_time));
+    }
+  }
+
   const dayChanges = getChangesForDateOrDayOfWeek(dayOfWeek, shiftChanges, targetDateStr);
-  const baseShifts = shifts.filter(s => s.coach_id === coachId && s.day_of_week === dayOfWeek);
+  let baseShifts = shifts.filter(s => s.coach_id === coachId && s.day_of_week === dayOfWeek);
+
+  // 2. Si es sábado y se proporcionó targetDateStr y saturdayGuards
+  if (dayOfWeek === 6 && targetDateStr && saturdayGuards) {
+    const satGuard = getSaturdayGuardForDate(targetDateStr, saturdayGuards);
+    if (satGuard && satGuard.coach_id === coachId) {
+      baseShifts = [
+        {
+          id: satGuard.id,
+          day_of_week: 6,
+          start_time: satGuard.start_time,
+          end_time: satGuard.end_time,
+          duration_hours: calculateDurationHours(satGuard.start_time, satGuard.end_time) || 3,
+          franja: 'sabado',
+          coach_id: coachId,
+          coach_name: satGuard.coach_name,
+          is_double_coverage: false,
+          notes: 'Guardia Rotativa de Sábado',
+        },
+      ];
+    } else {
+      baseShifts = [];
+    }
+  }
 
   const result: DisplayShift[] = [];
 
-  // 1. Procesar los turnos fijos asignados al coach
+  // Procesar los turnos base asignados al coach
   baseShifts.forEach(shift => {
-    // Buscar si hay un pedido de cambio (confirmado, tomado o abierto) que afecte a este turno.
-    // Condición estricta de solapamiento de intervalos temporales: startA < endB && endA > startB
+    // Buscar si hay un pedido de cambio (confirmado, tomado o abierto) que afecte a este turno
     const change = dayChanges.find(
       ch =>
         ch.requester_id === coachId &&
@@ -227,20 +339,38 @@ export const getCoachEffectiveShifts = (
     }
   });
 
-  // 2. Procesar turnos que este coach ACEPTÓ CUBRIR (reemplazos confirmados a favor de este coach)
+  // Procesar turnos que este coach ACEPTÓ CUBRIR (reemplazos confirmados a favor de este coach)
   const coveringChanges = dayChanges.filter(
     ch => ch.status === 'confirmed' && ch.claimed_by_id === coachId
   );
 
   coveringChanges.forEach(ch => {
     // Buscar datos del turno original para mantener información de sala y compañero
-    const originalShift = shifts.find(
+    let originalShift = shifts.find(
       s =>
         s.coach_id === ch.requester_id &&
         s.day_of_week === dayOfWeek &&
         s.start_time < ch.end_time &&
         s.end_time > ch.start_time
     );
+
+    if (!originalShift && dayOfWeek === 6 && targetDateStr && saturdayGuards) {
+      const satGuard = getSaturdayGuardForDate(targetDateStr, saturdayGuards);
+      if (satGuard && satGuard.coach_id === ch.requester_id) {
+        originalShift = {
+          id: satGuard.id,
+          day_of_week: 6,
+          start_time: satGuard.start_time,
+          end_time: satGuard.end_time,
+          duration_hours: calculateDurationHours(satGuard.start_time, satGuard.end_time) || 3,
+          franja: 'sabado',
+          coach_id: satGuard.coach_id,
+          coach_name: satGuard.coach_name,
+          is_double_coverage: false,
+          notes: 'Guardia Rotativa de Sábado',
+        };
+      }
+    }
 
     const calculatedFranja = dayOfWeek === 6 ? 'sabado' : (ch.franja || getFranjaFromTime(ch.start_time));
 
@@ -272,18 +402,115 @@ export const getCoachEffectiveShifts = (
 
 /**
  * Calcula los turnos efectivos generales para toda la grilla comunitaria,
- * reemplazando al coach cedente por el coach suplente en los cambios confirmados.
+ * reemplazando al coach cedente por el coach suplente en los cambios confirmados,
+ * y reflejando guardias de sábado y feriados si aplican a targetDateStr.
  */
 export const getGeneralEffectiveShifts = (
   dayOfWeek: number,
   shifts: Shift[],
   shiftChanges: ShiftChangeRequest[],
-  targetDateStr?: string
+  targetDateStr?: string,
+  saturdayGuards?: SaturdayGuard[],
+  holidays?: HolidaySchedule[]
 ): DisplayShift[] => {
+  // 1. Si targetDateStr coincide con un feriado registrado
+  if (targetDateStr && holidays && holidays.length > 0) {
+    const holiday = holidays.find(h => h.date === targetDateStr);
+    if (holiday) {
+      if (holiday.is_closed) {
+        return [];
+      }
+      const holidayShifts: DisplayShift[] = [];
+      if (holiday.slots && holiday.slots.length > 0) {
+        holiday.slots.forEach((slot, sIdx) => {
+          holidayShifts.push({
+            id: `holiday-${holiday.id}-${slot.id || sIdx}-1`,
+            day_of_week: dayOfWeek,
+            start_time: slot.start_time,
+            end_time: slot.end_time,
+            duration_hours: slot.duration_hours,
+            franja: dayOfWeek === 6 ? 'sabado' : getFranjaFromTime(slot.start_time),
+            coach_id: slot.coach_id_1,
+            coach_name: slot.coach_name_1,
+            is_double_coverage: true,
+            partner_name: slot.coach_name_2,
+            notes: `Feriado: ${holiday.name}`,
+          });
+          holidayShifts.push({
+            id: `holiday-${holiday.id}-${slot.id || sIdx}-2`,
+            day_of_week: dayOfWeek,
+            start_time: slot.start_time,
+            end_time: slot.end_time,
+            duration_hours: slot.duration_hours,
+            franja: dayOfWeek === 6 ? 'sabado' : getFranjaFromTime(slot.start_time),
+            coach_id: slot.coach_id_2,
+            coach_name: slot.coach_name_2,
+            is_double_coverage: true,
+            partner_name: slot.coach_name_1,
+            notes: `Feriado: ${holiday.name}`,
+          });
+        });
+      } else if (holiday.coach_id_1 && holiday.coach_id_2) {
+        const startTime = holiday.selected_hours?.[0] || '09:00';
+        const endTime = holiday.selected_hours?.[holiday.selected_hours.length - 1]
+          ? `${String(Number(holiday.selected_hours[holiday.selected_hours.length - 1].split(':')[0]) + 1).padStart(2, '0')}:00`
+          : '13:00';
+        holidayShifts.push({
+          id: `holiday-${holiday.id}-1`,
+          day_of_week: dayOfWeek,
+          start_time: startTime,
+          end_time: endTime,
+          duration_hours: holiday.total_hours || 4,
+          franja: dayOfWeek === 6 ? 'sabado' : getFranjaFromTime(startTime),
+          coach_id: holiday.coach_id_1,
+          coach_name: holiday.coach_name_1,
+          is_double_coverage: true,
+          partner_name: holiday.coach_name_2,
+          notes: `Feriado: ${holiday.name}`,
+        });
+        holidayShifts.push({
+          id: `holiday-${holiday.id}-2`,
+          day_of_week: dayOfWeek,
+          start_time: startTime,
+          end_time: endTime,
+          duration_hours: holiday.total_hours || 4,
+          franja: dayOfWeek === 6 ? 'sabado' : getFranjaFromTime(startTime),
+          coach_id: holiday.coach_id_2,
+          coach_name: holiday.coach_name_2,
+          is_double_coverage: true,
+          partner_name: holiday.coach_name_1,
+          notes: `Feriado: ${holiday.name}`,
+        });
+      }
+      return holidayShifts.sort((a, b) => a.start_time.localeCompare(b.start_time));
+    }
+  }
+
   const dayChanges = getChangesForDateOrDayOfWeek(dayOfWeek, shiftChanges, targetDateStr).filter(
     ch => ch.status === 'confirmed'
   );
-  const baseShifts = shifts.filter(s => s.day_of_week === dayOfWeek);
+  let baseShifts = shifts.filter(s => s.day_of_week === dayOfWeek);
+
+  // 2. Si es sábado y se proporcionó targetDateStr y saturdayGuards
+  if (dayOfWeek === 6 && targetDateStr && saturdayGuards) {
+    const satGuard = getSaturdayGuardForDate(targetDateStr, saturdayGuards);
+    if (satGuard) {
+      baseShifts = [
+        {
+          id: satGuard.id,
+          day_of_week: 6,
+          start_time: satGuard.start_time,
+          end_time: satGuard.end_time,
+          duration_hours: calculateDurationHours(satGuard.start_time, satGuard.end_time) || 3,
+          franja: 'sabado',
+          coach_id: satGuard.coach_id,
+          coach_name: satGuard.coach_name,
+          is_double_coverage: false,
+          notes: 'Guardia Rotativa de Sábado',
+        },
+      ];
+    }
+  }
 
   const result: DisplayShift[] = [];
 

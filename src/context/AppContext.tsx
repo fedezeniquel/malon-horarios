@@ -22,6 +22,7 @@ import {
 } from '../lib/initialData';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { calculateDurationHours, getFranjaFromTime } from '../lib/hoursAudit';
+import { formatDateToIso } from '../lib/effectiveShifts';
 import { sendBrowserNotification } from '../lib/notifications';
 
 interface AppContextType {
@@ -64,6 +65,8 @@ interface AppContextType {
   setIsCoachPickerOpen: (open: boolean) => void;
   isCreateChangeModalOpen: boolean;
   setIsCreateChangeModalOpen: (open: boolean) => void;
+  preselectedChangeDate: string | null;
+  setPreselectedChangeDate: (date: string | null) => void;
   editingShift: Shift | null;
   setEditingShift: (shift: Shift | null) => void;
   isShiftModalOpen: boolean;
@@ -115,6 +118,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isPinModalOpen, setIsPinModalOpen] = useState<boolean>(false);
   const [isCoachPickerOpen, setIsCoachPickerOpen] = useState<boolean>(false);
   const [isCreateChangeModalOpen, setIsCreateChangeModalOpen] = useState<boolean>(false);
+  const [preselectedChangeDate, setPreselectedChangeDate] = useState<string | null>(null);
 
   // Estados para modales de edición administrativa
   const [editingShift, setEditingShift] = useState<Shift | null>(null);
@@ -981,7 +985,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!currentCoach) return;
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = formatDateToIso(now);
 
     // 1. Recordatorio para el coach cuando le toca su sábado asignado (próximos 6 días)
     saturdayGuards.forEach(guard => {
@@ -1083,6 +1087,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsCoachPickerOpen,
         isCreateChangeModalOpen,
         setIsCreateChangeModalOpen,
+        preselectedChangeDate,
+        setPreselectedChangeDate,
         editingShift,
         setEditingShift,
         isShiftModalOpen,
